@@ -1,0 +1,11 @@
+# UI卡顿检测
+- 使用MainLooper
+    - 1、为其设置日志输出，Looper.loop()方法中会判断日志是否为null(默认null)然后调用log.println()方法，loop()方法会在msg.target.dispatchMessage(msg)前后进行输出带有（"Dispatching to"/"Finished to"）关键字的信息，可以判断是否有关键字符串然后开始计时。
+    - 2、遇到"Dispatching to"时使用HandlerThread来延时发送消息(延时自己决定，想检测超过500ms，的就设置500)，遇到"Finished to"则移除该消息。如果MainLooper执行dispatchMessage()时间小于延时，发送的延时消息就会被提前移除。我们可以在该延时消息中调用MainLooper.getThread().getStackTrace()输出MainLooper当时的栈调用信息
+    - *也可以通过反射获取MainLooper对应的MessageQueue，自己使用死循环代理调用queue.next()获取消息来执行，然后就插入代码做监听
+- 利用Choreographer
+    - 1、Choreographer可以用于监听VSync信号，向其提交的回调，会在下次信号到来时被执行。信号频率为16ms一次。所以可以通过重复向Choreographer提交回调来检测帧率。
+    - 2、每次回调响应时移除HandlerThread的消息，并重新提交延时消息，如果下次回调太慢，HandlerThread的延时消息就会被执行，然后就可以查看栈信息
+- 其余
+    - 使用开发者选项来查看View是否重复绘制
+    - 避免短时间创建大量对象，引起内存抖动，导致频繁gc，降低帧率。

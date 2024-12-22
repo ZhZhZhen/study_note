@@ -1,0 +1,25 @@
+# WebView
+- 与网页交互
+    - webSettings.setJavaScriptEnabled(true);开启javascript支持
+    - Android调用JS
+        - 1、webView.loadUrl()
+        - 2、webView.evaluateJavascript()（4.4后支持，不会使网页刷新，效率高，可以设置回调，建议根据版本使用1,2方法）
+    - JS调用Android
+        - 1、addJavascriptInterface(Object,js映射对象名)，添加映射，第一个参数所代表的类中方法使用@Javascript注解标注。
+            - 由于4.2之前没有@Javascript来限定可调用方法，所以会导致可以通过getClass()方法去加载系统类从而调用系统方法。
+            - 因此4.2之前尽量不访问不可信页面，使用拦截prompt()解决，在onJsPrompt()回调中解析信息(过滤掉非法信息)并通过反射调用方法。
+        - 2、WebClient.shouldOverrideUrlLoading()拦截，可以定义特殊的url，然后过滤scheme和authority来决定调用什么方法。
+        - 3、WebChromeClient拦截JS对话框消息，也需要定义特殊url，过滤决定调用什么方法。
+- 优化
+    - 1、WebSetting设置缓存
+        - 缓存内容在data/data/包名/cache中
+        - webSettings.setAppCacheEnabled(true)/webSettings.setDatabaseEnabled(true)/webSettings.setCacheMode(WebSettings.LOAD_DEFAULT)/WebSetting.setDomStorageEnable(true)
+    - 2、shouldInterceptRequest()中拦截图片加载，改为使用本地图片加载库，让图片库处理缓存逻辑
+    - 3、图片资源懒加载，页面加载前拦截图片下载，页面加载onPageFinish()事件中再取消拦截。getSettings().setBlockNetworkImage(boolean)
+    - 4、提前初始化WebView并缓存：所有WebView使用相同的全局服务，第一次使用的时候加载会比较慢，所以可以提前初始化一个WebView来加载全局服务(即使不使用这个WebView)。复用WebView，复用时需要避免内存泄漏，并且重置WebView状态(View的Context可以使用Application)
+    - 5、避免内存泄漏，销毁时让WebView加载空内容，用父View移除WebView，并调用webView.destroy()
+    - 6、进入后台时关闭js交互。WebSettings.setJavaScriptEnabled(boolean)
+    - 其他
+        - 关闭密码保存提醒，WebSettings.setSavePassword(false)
+        - 自定义加载失败页面，WebViewClient.onReceivedError
+        - 开启http和https混用。WebSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);

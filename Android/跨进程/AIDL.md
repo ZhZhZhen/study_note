@@ -1,0 +1,16 @@
+# AIDL
+- 使用时，1、需要声明AIDL接口，AIDL未默认支持的类也需要声明AIDL文件(必须与对应类在相同包下)；2、在文件导入AIDL文件（AIDL接口和自定义类型）需要显式import。之后AndroidStudio会根据AIDL接口生成同名的样本接口，并做对应实现
+    - in,out,inout：1、基本数据类型只能为in，可以不声明。2、一个实体类型必须显示声明in，out，inout。这会使得其在编译器生成的文件添加额外的代码。在Proxy类的对应方法中：in会通过object.writeToParcel(_data)写入，out则不会。同时out会通过object.readFromParcel(_reply)读取数据(该方法需要实体类写一下)；在Stub.onTransact(0种：in会调用object.CREATOR.createFromParcel(_data)创建数据，而out则是调用object的无参构造方法新建。在调用方法获取结果后，in不会写入数据，out会调用object.writeToParcel(_reply)把数据写入_reply
+    - oneway：用于修饰方法，修饰的方法被调用时不会阻塞客户端线程，所以该方法的返回值只能为void，且方法参数不允许out修饰。该方法在对应生成的Proxy类中不会创建_reply，Stub.onTranscat()自然也没有_reply读取。(如果仅仅只是返回类型为void，还是会生成_reply的，难道_reply.readException()会挂起线程等待_reply.writeNoException()回复？)
+- 在生成的文件中，IBookManager接口会继承IInterface接口。同时产生两个实现类
+    - Stub类：该抽象类继承Binder，实现IBookManager接口
+        - asInterface()：该静态方法根据是否跨进程来返回对应的接口调用代理类。如果queryLocalInterface返回null，说明跨进程，将返回Proxy类；如果有值，说明进程内调用，则返回值为Stub的具体实现。
+        - onTransact()：用于跨进程调用时服务端的处理，运行在服务端的Binder线程池。该方法通过传递的code来区分方法调用，通过传递的data来获取参数并调用具体的方法。然后将方法返回值写入reply。该方法返回false时代表调用失败(可用于一些自己实现的验证)
+        - 该抽象类具体使用时需要实现IBookManager的方法，跨进程时，这些方法就是被onTransact()分发调用的；当非跨进程时，就是直接调用这些方法
+    - Proxy类：该类实现IBookManager接口，实现方法的远程调用
+        - 构造方法：该类的构造方法被Stub.asInterface()调用(跨进程时)，会将远程Binder(BinderProxy)持有为自己的成员变量mRemote，跨进程调用都依赖于该BinderProxy。
+        - IBookManager方法的具体实现：通过Parcel构造data和reply，data用于包装方法参数，reply用于服务端写入数据返回，调用mRemote.transact()，来进行跨进程调用。调用mRemote.transact()时会将当前线程挂起来等待返回值。
+- Binder
+    - linkToDeath()：给Binder设置死亡监听，可以用于重新绑定。
+    - unLinkToDeath()：移除Binder的死亡监听。正确移除也许是为了防内存泄漏？
+- RemoteCallbackList用于跨进程的客户端列表删除，实际通过ArrayMap存储数据，key为Binder，value为Proxy。

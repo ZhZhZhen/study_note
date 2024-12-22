@@ -1,0 +1,15 @@
+# Activity
+- 1、客户端向服务端申请启动Activity：使用startActivity()最终会调用startActivityForResult()，该方法调用 Instrumentation.execStartActivity()，该方法会获取ActivityTaskManagerService的客户端远程调用代理，然后RPC调用 ActivityTaskManagerService.star tActivity()
+    - Activity重写了startActivity，和ContextImpl一样最终其实都是通过Instrumentation.execStartActivity()启动新的Activity。区别在于Activity在方法中传递了自己的实例和token。而ContextImpl这两项参数为null。
+    - 所以ContextImpl会检查Intent是否有FLAG_ACTIVITY_NEW_TASK这个参数，因为他没有token信息，无法根据token找出新Activity要从哪个任务栈中启动。所以要求从新任务栈中启动
+- 2、服务端收到请求后先告知客户端当前Activity回调onPause()：ATMS中最终调用startActivityAsUser，里面会调用ActivityStarter.execute()方法，这里会通过 <font color=#DC2D1E>ActivityStackSupervisor检查权限</font> (如有没有在Manifest中注册)，然后 <font color=#DC2D1E>通过ActivityStack判断是否需要启动新的任务栈</font> 。最终会调用到ActivityStack.resumeTopActivityInnerLocked()。
+- 3、ActivityStack.resumeTopActivityInnerLocked()：1、该方法判断是否存在mResumeActivity，有则就会通过startPausingLocked()去RPC调用客户端的Activity回调onPause方法（这一步具体使用ApplicationManager的远程代理来调用ApplicationThread.scheduleTransaction()，该方法向H发送消息，然后调用ActivityThread内部类TransactionExecutor.execute()方法执行了ActivityPauseItem.execute和ActivityPauseItem.postExecute()，前者调用handlePauseActivity完成生命周期回调，后者调用ATMS.activityPaused()）2、如果无mResumeActivity则判断是否要启动Activity，如果不用启动会远程传递ResumeActivityItem走唤醒流程。3、之后调用ActivityStackSupervisor.startSpecificActiivty()，其中如果要启动新进程会最终调用AMS.startProcessLocked()，否则调用realStartActivityLocked()
+- 3.1、服务端被调用activityPaused()后告知服务端已经暂停：第二部最后的PauseActivityItem.postExecute()会跨进程调用ATMS.activityPaused()方法，activityPaused()最终会调用到ActivityStack.resumeTopActivityInnerLocked()(重新回到第3-2步无mResumeActivity流程)
+- 3.3、如果走创建进程流程会在AMS.attachApplication()中判断是否有待启动Activity既而调用AcitivityStackSupervisor.realStartActivityLocked()
+- 4、ActivityStackSupervisor.realStartActivityLocked()：会调用scheduleTransaction()传递LaunchActivityItem，然后调用到LaunchActivityItem().execute()，去执行ActivityThread.handleLaunchActivity()->performLaunchActivity()
+- 5、ActivityThread.performLaunchActivity()：1、使用Instrumentation.newActivity()创建Acitivity。2、如无Application，创建Application并回调其onCreate()。3、调用activity.attach()，挂载ContextImpl，token，Instrumentation。4、回调activity.onCreate()，通过Instrumentation.callActivityOnCreate()->activity.performCreate()->activity.onCreate()
+- 一些对象解释
+    - ActivityRecord：是Activity在ActivityTaskManagerService的映射，ATMS用ActivityRecord管理客户端的Activity。该类会记录Acitivty所在进程的ApplicationThreadProxy用于跨进程调用，从而触发Activity的生命周期回调。
+    - ActivityStack：Activity的栈管理，用来记录Activity的状态，以及判断是否要开启新的任务栈
+    - Instrumentation：负责Activity和Application的创建，负责Activity的生命周期的回调，所有Activity都持有该对象，一个应用中只有一个该对象
+    - ApplicationThread：是ActivityThread的内部类，用于被SystemService跨进程调用。通常有scheduleXXX()方法用于RPC调用，这些方法通常会通过H这个handler发送消息来最终调用ActivityThread中的方法。在客户端发起跨进程调用时通常会传递其Proxy类给SystemService用于调用。

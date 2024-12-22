@@ -1,0 +1,25 @@
+# Service
+- 使用
+    - startService()用于启动一个无交互的Service，之后使用stopService()关闭
+    - bindService()传递一个ServiceConnection用于绑定Service，并通过传递的Binder进行交互，使用unbindService()来关闭
+    - Service.onUnbind()方法中如果返回true，则解绑后下次绑定会回调onRebind()（前提Service还在，如果不在了那就是重新创建的流程了）；否则不会回调（这个是针对onRebind()的，onBind()无论如何只会回调一次）
+- 原理：AMS会交由ActiveServices完成Service启动工作
+    - startService
+        - startService最终会调用到 ContextImpl.star tService()，之后会RPC调用 AMS.star tService()。AMS会交由ActiveServices. startServiceLocked()执行，之后都交由AS来处理Service的启动，最终会调用到bringUpServiceLocked()
+        - ActiveServices.bringUpServiceLocked()中，1、首先判断如果已经启动，通过sendServiceArgsLocked()（调用ApplicationManager.scheduleServiceArgs()）跨进程回调onStartCommand()。2、如果判断不用启动进程则调用realStartServiceLocked()，方法中先RPC调用ApplicationManager.scheduleCreateService()，然后判断是否绑定（这里不绑定），接着调用sendServiceArgsLocked()。3、如果需要启动新进程则调用startProcessLocked()启动进程，
+        - ApplicationThread.scheduleCreateService()中，会通过H最终调用到handleCreateService()，该方法中创建Service并回调其onCreate()
+        - 简单来说：1、应用端通过RPC调用向AMS申请startService。2、AMS创建ServiceRecord后先RPC调用使对应进程创建Service并回调onCreate。3、然后RPC调用使Service回调onStartCommand()
+    - bindService
+        - bindService最终会调用到 ContextImpl.bi ndServiceCommon()。该方法中，首先会调用 getServiceDispatcher()方法根据ServiceConnection创建一个IServiceConnection（用于跨进程回调），然后RPC调用AMS. bindIsolatedService()，转而调用至 ActiveService.bi ndServiceLocked()
+        - ActivityService.bindServiceLocked()中，会创建ServiceRecord记录对应的Service，并记录了CononectRecord，如果未启动服务会调用bringUpServiceLocked()去走启动流程；如果已经启动有记录Service的IBinder（onBind()返回的），会直接调用IServiceConnection.connected()
+        - bringUpServiceLocked()方法中，判断是否要启动新进程，不用启动会调用realStartServiceLocked()去RPC调用ApplicationManager.scheduleCreateService()，然后在requestServiceBindingsLocked()(realStart方法中的逻辑)里会对需要绑定的service情况去RPC调用scheduleBindService()。如果要启动新进程则启动新进程则会调用startProcessLocked()。
+        - scheduleBindService对应ActivityThread.handleBindService()，该方法会对调用Service.onBind获取IBinder，然后RPC调用 AMS.pub lishService()->ActiveService. publishServiceLocked()，然后查找对应的ConnectRecord，并调用 IServiceConnect.co nnected()方法把IBinder传递过去
+        - IServiceConnect.connected用RPC调用到bindService()所在进程中InnerConnection.connected()，其通过H.post()运行ServiceDispatcher.doConnected()方法来调用ServiceConnection.onServiceConnected()
+        - 简单来说：1、应用端通过RPC向AMS申请bindService，这一步会传递InnerConnect的远程调用代理。2、AMS记录对应ServiceRecord和ConnectRecord，先通过RPC调用使对应进程创建Service并回调onCreate；如果已经有对应的Service.IBinder，则会直接RPC回调 客户端ServicreConnect.onServiceConnected() 。3、然后在RPC调用使得Service回调onBind()去获取IBinder。4、Service所在进程回调onBind()后RPC调用 AMS.pub lishService()去分发IBinder。5、AMS拿到IBinder后查找对应ConnectRecord，并记入该IBinder，然后RPC调用 InnerConnect.co nnected()，完成客户端ServicreConnect.onServiceConnected()回调。
+    - 其余
+        - 许多地方都会调用AMS. serviceDoneExecuting()->ActiveService. serviceDoneExecutingLocked() 来完成回调确认工作（比如Service.onCreate()）
+        - unbindService()中，会移除AMS的ConnectRecord，当所有ConnectRecord都移除时，会通过RPC回调Service.onUnbind()，然后还会通过bringDownServiceLocked()去RPC回调Service.onDestroy()方法
+        - ServiceDispatcher中持有了ServiceConnect和InnerConnect（RPC的被调用端），bindService()所在进程会缓存该类，便于下次bindService使用
+        - AMS收到远程调用后会使用内部成员ActiveServices来完成Service的安排工作。
+        - Service.onBind()返回的IBinder，是通过AMS.publishService()传递给AMS的，AMS再通过ConnectionRecord.IServiceConnection.connected()传递给客户端。所以这个Binder是没有注册在ServiceManager中的，属于匿名Binder
+        - 如果走启动进程，会返回ProcessRecord。但是下次bringUpServiceLocked()是在attachApplication()之后，判断该进程有待启动的Service就会去启动

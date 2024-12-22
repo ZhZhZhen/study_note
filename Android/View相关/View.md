@@ -1,0 +1,52 @@
+# View
+- 位置和部分参数，坐标系下右为正
+    - left,top,right,bottom：四个边相对于父View的位置，在layout()中通过setFrame()确定
+    - x,y,translationX,translationY：(x,y)代表左上角坐标，trans值默认为0，x=left + translationX
+    - TouchSlop：用于判断最小滑动的距离，小于该距离可认为不滑动
+- 辅助器
+    - VelocityTracker：用于辅助计算滑动速度，使用时需要及时回收。touch方法中调用addMovement()添加event，通过在MOVE事件中调用computeCurrentVelocity()传入单位时间来计算运行的像素数，通过getXVelocity()获取横向速度
+    - GestureDetector：用于复杂手势判断，在touch方法中接管方法的TouchEvent，然后通过设置监听来进行触发复杂手势时的相应回调
+    - Scroller：用于弹性滑动的计算器，本身不参与滑动，只是用于计算弹性滑动的适合距离。1、调用startScroll()初始化滑动持续时间和起始x,y值，并调用invalidate()触发重绘。2、调用computeScrollOffset()(一般重写computeScroll()去调用，而computeScroll()会在draw()方法中被调用)去根据经过时间计算当前的x,y值，该方法返回true代表滑动未结束。3、调用如getCurX()获取当前x值，并主动调用scrollTo()方法去滑动。
+- scroll滑动
+    - scrollTo()：修改mScrollX,mScrollY，然后调用invalidate()触发重绘
+    - scrollBy()：相对滑动，内部调用了scrollTo()
+    - 滑动改变的是View内容相对于View左和上边缘的值，对应mScrollX和 mScrollY
+    - 滑动参数为正数时，表现为内容向左和向上移动
+- 事件分发
+    - ViewRootImpl.setView()时注册了触摸事件的接收。顺序由ViewRootImpl调用DecorView.dispatchPointerEvent()->DecorView.dispatchTouchEvent()->Activity.dispatchTouchEvent  ->  PhoneWindow.superDispatchTouchEvent  ->  DecorView.superDispatchTouchEvent  ->  DecorView.super.disPatchTouchevent，其中最后一步就是ViewGroup.dispatchTouchEvent
+    - ViewGroup.dispatchTouchEvent()： [https://www.jianshu.com/p/25f13c3631ca]("https://www.jianshu.com/p/25f13c3631ca")
+    - ViewGroup.onInterceptTouchEvent()：默认返回false
+    - View.dispatchTouchEvent()：如果设置了TouchListener，则触发该监听器ouTouch()方法；如果未设置监听或 ouTouch()返回false ，则交由自己的onTouchEvent()处理。
+    - View.onTouchEvent()：该方法默认实现为，1、如果disable，则返回是否可点击，2、如果设置了Touch代理，交由代理处理代理返回true则返回true。3、如果可点击，则在UP事件中触发ClickListener.onClick()，进入这步骤无论有没有点击监听器都会返回true。4、最后不可点击返回false
+- 工作流程
+    - 在ActivityThread中，handleResumeActivity()方法，会先通过performResumeActivity()触发Activity的onResume()回调，1、之后handleResumeActivity()会调用Activity.makeVisible()，这之中通过WindowManager.addView()->WindowManagerGloabl.addView()，将DecorView和创建的ViewRootImpl关联。2、该方法中通过ViewRootImpl.setView()，会与DecorView产生关联。3、setView()会通过requestLayout()->performTraversals()->调用performMeasure()，performLayout()，performDraw()。这三个方法最终调用DecorView的measure()/layout()/draw()方法去分发工作。
+    - Measure流程
+        - MeasureSpec：是一个int值，高2位表示SpecMode，低30位表示SpecSize，用于提供一个测量标准，最终值会收到该标准影响
+            - Mode：有三种。1、UNSPECIFIED，代表需要重复测量计算。2、EXACTLY，代表最终size即为SpecSize确切值。3、AT_MOST，代表最终size不超过SpecSize值。
+            - 一个非顶层View的MeasureSpec由父View的MeasureSpec和自身的LayoutParams决定；而DecorView由窗口尺寸和自身LayoutParams决定
+        - measure()方法中会判断FORCE_LAYOUT标志位是否为1而调用onMeasure()，并且添加LAYOUT_REQUIRED标志位为1，各个View的主要测量逻辑通过重写onMeasure()来实现。
+            - 重写的onMeasure()方法最终都要通过setMeasureDimension()来设置测量宽高，只有调用过该方法后View才有实际的measureHeight和measureWidth。
+            - View.onMeasure()默认实现：通过setMeasureDimension()设置测量宽高，如果SpecMod为AT_MOST/EXACTLY，则取specSize；如果为UNSPECIFIED，则取minWidth/minHeight和背景宽高的最大值
+            - ViewGroup派生子类的onMeasure实现逻辑：1、首先获取子View.layoutParams，并结合自己的MeasureSpec和具体使用情况，计算出子View的MeasureSpec（比如希望子宽最大为自己的2/3，那就传递一个AT_MOST，宽为自己2/3的measureSpec给子View）。2、调用child.measure()把MeasureSpec传递给子View。3、调用子View.getMeasureWidth()/getMeasureHeight()。根据子View的测量宽高，自己的MeasureSpec和使用情况推测自己的测量宽高并调用setMeasureDimension()设置测量宽高。
+            - 注意点：1、可以通过getChildMeasureSpec()来根据固定规则生成子View的MeasureSpec。也可以根据自己的规则生成MeasureSpec
+    - layout流程
+        - layout()：1、通过setFrame()来设置自己的left,right,top,bottom值，这4个属性。getWidth/getHeight在调用setFrame()后才有实际意义。2、判断LAYOUT_REQUIRED标志位是否为1，而回调onLayout()，回调之后置LAYOUT_REQUIRED为0。3、置FORCE_LAYOUT为0。
+        - View.onL ayout()：默认实现为空
+        - ViewGroup派生子类的onLayout逻辑：循环中，根据自身布局的特点，去计算子View的4个属性值，通过 child.la yout()来分发。
+    - draw流程，以下步骤在draw(一个参数)中依次调用，在重绘中标记为DIRTY的View才会被调用draw()（但具体哪里判断我没找到）
+        - 1、background.draw()绘制背景
+        - 2、onDraw()绘制自己
+        - 3、dispatchDraw绘制children，该步骤会循环调用child.draw(三个参数)。(View.dispatchDraw()为空实现)
+        - 4.、onDrawForeground()绘制前景
+        - *ViewGroup在初始化的时候会设置WILL_NOT_DRAW为1，设置背景/前景/高亮/setWillNotDraw(false)。可以重置该标志为0。该标志位在draw(三个参数)中如果为1会直接调用dispatchDraw()跳过完整绘制流程走分发，为0会调用draw(一个参数)走完整的绘制流程
+    - 注意点；1、计算子View的宽度时需要考虑自身padding和子View的margin，比如自身宽100，padding20，子View的margin20，那么创建子View的MeasureSpec时所使用的size应该为60。2、一个View的宽度由自己的内容和Padding决定，不由LayoutParams.Margin决定(Margin是属于父View的内容)
+- post()
+    - 用于在主线程执行操作
+    - 当dispatchAttachedToWindow后，会通过AttachInfo中的Handler来执行操作
+    - 如果还未attach，会通过mRunQueue去存储操作，并在dispatchAttachedToWindow去执行
+    - *额外知识点：更新动画操作(比如Drawable的更新)也会使用同样的原理，同样通过mRunQueue记录操作，但是并不是使用AttachInfo的Handler去执行，而是使用choreographer中的Handler
+- invalidate()：1、最终调用invalidateInternal()去将自己的上下左右记录在Rect中，然后调用parent.invalidateChild()。2、默认采用硬件绘制，会通过责任链一直调用onDescendantInvalidated()，ViewRootImpl的该方法会设置绘制区域mDirty为整个窗口，然后调用scheduleTraversals()。3、而软件绘制不是通过责任链，而是通过循环获取getParent()并调用invalidateChildInParent()去计算dirty区域。在循环到ViewRootImpl时，其invalidateChildParent()会设置mDirty并调用scheduleTraversals()。4、无论是硬件绘制还是软件绘制，在责任链或循环的过程中都会标记途经的父View的PFALG_DIRTY为1，则将使得View工作流程会走绘制的分发。
+    - 最终ViewRootImpl所设置的mDirty是一个Rect，记录了需要重绘的区域，这将在performTravserval()中影响到Canvas的生成，而Canvas会被用于绘制流程draw(canvas)的参数，一层一层向View树传递
+- requestLayout()：1、该方法会将当前标记为PFLAG_FORCE_LAYOUT标记为1，然后通过责任链的模式调用ViewParent.requestLayout()，每次调用都会设置PFLAG_FORCE_LAYOUT标记为为1，最终调用到ViewRootImpl.requestLayout()。2、ViewRootImpl.requestLayout()会在检测主线程后，使用scheduleTraversal()触发View工作流程。3、measure()方法会检测标记PFLAG_FORCE_LAYOU，为1才会调用onMeasure()，并设置标志PFLAG_LAYOUT_REQUIRED为1，layout()会检测PFLAG_LAYOUT_REQUIRED，为1才会执行onLayout()，同时置PFLAG_LAYOUT_REQUIRED和PFLAG_FORCE_LAYOU为0。在layout执行setFrame()时，setFrame()会判断是否改变了上下左右，改变时会调用invalidate()
+- findViewById()：Activity调用该方法最终会通过PhoneWindow调用到DecorView.findViewById()去分发子View。每个View都会比较自己的Id与参数id是否一致，一致则返回。ViewGroup重写该方法增加了对子View分发调用findViewbyId()的逻辑
+- clipChildren()：每个View会尽可能的满足子View的绘制区域，如果一个ViewA为(100dp,100dp)，其父ViewB(200dp,200dp)的clipChildren为false，那么ViewA能获得(200dp,200dp)的绘制区域，如果A的子ViewC为(500dp,500dp)，那么ViewA最多可以分配给C(200dp,200dp)的绘制区域。从而使得C能够显示(200dp,200dp)的内容。(由于点击判断使用的是View的left,top,right,bottom，即layout过程确定的值，所以clipChildren()不能扩大点击区域，C的点击区域由A限制，为（100dp,100dp）)

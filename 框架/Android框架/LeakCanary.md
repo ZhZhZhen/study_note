@@ -1,0 +1,28 @@
+# LeakCanary
+- 初始化：2.0采用ContentProvider来自动注册LeakCanary，主要是在Manifest注册了LeakSentryInstaller，在onCreate时调用InternalLeakSentry.install()方法
+- InternalLeakSentry.install()：
+    - 1、使用ActivityDestroyWatcher向Application注册ActivityLifecycleCallback，在回调onActivityDestroyed()时调用refWatcher.watch(activity)方法。
+    - 2、使用FragmentDestroyWatcher注册ActivityLifecycleCallback，在回调onActivityCreared()时会获取对应的Acitivty的FragmentManagerImpl，并向FramgnetManager注册FragmentLifecycleCallback，在回调onFragmentViewDestroyed()和onFragmentDestroyed()时调用refWtach.watch(fragment.getView)。
+    - 3、调用LeakSentryListener.onLeakSentryInstalled()通知初始化完成，该方法初始化了gcTrigger（用于GC），HeapDumperTrigger(用于生成heapDump文件)，向Application注册了ActivitLifecycleCallback，用于在onActivityStarted/onActivityStopped，判断Activity前台数量来判断App是否进入后台来调用HeapDumperTrigger.onApplicationVisibilityChanged(boolean)，该方法最终调用的是scheduleRetainedInstanceCheck()来检测泄漏
+- InternalLeakSentry静态代码块
+    - 中初始化了refWatcher，checkRetainedExecutor(用于延迟执行任务，默认延迟5秒)，反射初始化了LeakSentryListener
+- refWatcher的成员变量
+    - watchReferences记录待检测的引用，LinkedHashMap<UUID，KeyedWeakReference>
+    - retainedReferences记录泄漏的引用，结构同上
+    - queue，用于创建弱引用时提供引用队列，弱引用中的对象被回收前，弱引用会被加入这个队列
+    - KeyedWeakReference继承弱引用，其中额外记录了UUID获得的key
+- refWatcher.watch(T)
+    - 1、该方法先调用removeWeaklyReachableReferences()。该方法循环queue，从中获得的弱引用会从WatchReferences和RetainedReferences中移除。
+    - 2、使用UUID生成随机key并使用KeyWeakReferences包装方法参数，然后加入到WatchReferences中。
+    - 3、向checkRetainExecutor发送操作延时5秒执行moveToRetained(key)方法。
+- refWatcher.moveToRetained()
+    - 1、先调用removeWeaklyReachableReferences()。
+    - 2、使用参数传递的key从WatchReferences移除弱引用，如果为空，说明第一步被移除了，不为空加入到retainedReferences中，并调用onReferenceRetained()，这个方法最终执行到HeapDumperTrigger.scheduleRetainedInstanceCheck()开始检查泄漏
+- HeapDumperTrigger.scheduleRetainedInstanceCheck()
+    - 将checkRetainedInstances()交由后台线程（一个HandlerThread）去做，下面描述checkRetainedInstance()内容
+    - 1、调用refWatcher.retainedKeys()，该方法先调用removeWeaklyReachableReferences()，后返回retainedReferences.keySet。
+    - 2、调用gcTrigger.runGc()，内部Runtime.getRuntime().gc()。
+    - 3、再次refWatcher.retainKeys()，这时候获取的可以认为都是泄漏的引用的key了。记录在HeapDumpMemoryStore中，供后续分析使用。
+    - 4、使用heapDumper获取dump文件，最终调用Debug.dumpHprofData()来获取文件。
+    - 5、使用HeapAnalyzerService.runAnalysis开启前台服务分析
+- HeapAnalyzerService：该服务会获取HeapDumpMemoryStore中的key，通过序列化获取dump文件，然后使用haha库分析dump文件，并找出最短泄漏路径，计算泄漏大小，然后通过Notification通知查看分析结果。

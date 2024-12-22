@@ -1,0 +1,31 @@
+# ANR问题
+- 类型错误
+    - 5秒未响应输入事件（KeyDispatchTimeout）
+        - InputDispatcher通过InputChannel向客户端进程发送触摸事件，并监听响应时间。超时会调用appNotResponding()（无触摸事件时，即使主线程阻塞也不会产生ANR，因为InputDispatcher没有发送触摸事件并开始计时检测）
+    - 广播超时：广播超时只针对串行广播，前台广播10秒内，后台广播60秒内，BroadcastReceiver.onReceive()没有执行完成（BroadcastTimeout）
+        - 开始计时：1、对于每个接收者BroadcastQueue.processNextBroadcast()中使用setBroadcastTimeoutLocked()发送延时消息。2、而对于一个广播，超时时间为2 * receivers * timeout，一个广播发送过程中超时了，会取消该广播的发送
+        - 移除计时：1、对于每个接收者BroadcastQueue.processNextBroadcast()中使用cancelBroadcastTimeoutLocked()移除消息
+        - 如果超时会调用AMS.appNotResponding()
+    - 服务超时：前台服务20秒，后台服务200秒，Service主线程未响应（ServiceTimeout）
+        - 开始计时：ActiveServices.realStartService()中，在调用scheduleCreateService()之前发送延时消息
+        - 移除计时：ActivityThread.handleCreateService()触发service.onCreate()之后调用AMS.serviceDoneExecuting()来移除消息
+        - 如果超时会调用AMS.appNotResponding()
+    - ContentProvider超时：进程启动后10秒内未publishContentProvider(通常时CP.onCreate()耗时导致)
+        - 开始计时：AMS.attachApplication()如果判断进程要启动ContentProvider则发送延时消息
+        - 移除计时：在handleBindApplication()创建ContentProvider并回调他们的onCreate()后调用AMS.publishContentProviders()。该方法中移除延时消息
+        - 如果超时会杀掉对应进程
+    - AMS.appNotResponding：会通过ANRHelper调用到ProcessRecord.appNotResponding()，如果是后台进程会kill()掉，如果不是则会向AMS发送消息，弹出ANRDialog。
+- 哪些操作导致问题，在主线程中
+    - 1、高耗时操作，网络请求，图像变换
+    - 2、磁盘读写，数据库读写
+    - 3、创建大量的新对象
+    - 4、发送死锁导致阻塞
+- 如何避免
+    - 1、UI线程制作UI工作
+    - 2、耗时操作放在单独线程
+    - 3、与主线程的交互使用Handler（持有MainLooper）
+    - 4、管理线程，线程复用，线程太多会占用CPU资源
+- 如何排查
+    - 1、分析log
+    - 2、查看代码是否在主线程中处理耗时操作
+    - 3、查看/data/anr/traces.txt文件，记录了发送ANR的类，线程id，进程id，线程进程cpu使用率等；比如查看该文件中线程状态是否阻塞，cpu使用率中的iowait（CPU等待io操作的时间，过高需要查看那个进程在执行io操作），cpu使用率太高导致主线程资源被抢占

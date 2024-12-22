@@ -1,0 +1,15 @@
+# View解析xml实例化过程
+- 入口
+    - Activity.setContentView()，最终交由PhoneWindow.setContentView()来创建LayoutInflater。
+    - AppcompatActivity.setContentView()，最终交由AppcompatDelegateImpl.setContentView()。
+    - 上述过程都会通过getSystemService()获取LayoutInflater。1、ContextThemeWrapper重写了getSystemService()中关于Layoutinflater获取的逻辑，在其中所持有LayoutInflater对象不为空，直接返回。否则会使用LayoutInflater.from(Context.getBaseContext)来获取。2、from()方法内部也是通过context.getSystemService()获取该对象，所以最终通过ContextImpl中的ServiceManagerRegistry来获得LayoutInflater的创建过程。3、创建的是一个PhoneLayoutInflater，该Layout对系统View增加了("android.widget.","android.webkit.","android.app.")三种前缀，因为反射系统View时，是没有完整View名的，所以会增加前缀，此外LayoutInflater也默认为系统View增加了"android.view."的前缀
+- LayoutInflater
+    - 所有加载方式，最终都通过inflate()来完成，重载的inflate()会通过id获取xml文件的解析器XmlResourceParser(该类实现了Attribute接口)，然后调用最终重载inflate()
+    - inflate()：1、调用createViewFromTag()来创建xml布局中的根View。2、调用rInflateChildren()->rInflate()来循环创建其子View。rInflate()也会通过createViewFromTag()创建当前View，和rInflateChildren()创建其子View
+    - createViewFromTag()：1、该方法通过tryCreateView()来创建View，这一步会使用Factory2,Factory来代理创建View，默认无这些Factory。2、如果创建为null，调用createView()来创建View。这一步会为系统View的name附加前缀(但PhoneLayoutInflater是提前附加的，这一步就不会再加了)。3、createView()中即通过传入的name反射创建View并传入Context，AttributeSet。View的构造方法就会解析Attribute来初始化自己的系统属性（如min_width，需要注意的是LayoutParams.width/height的添加是在rInflate()中进行的，但也是通过解析Attr获取，然后通过ViewGroup.addView()传递给子View的）
+- Factory
+    - Factory2，Factory两个接口提供了onCreateView来创建View，Factory2的接口方法中多了一个View代表当前要创建的View的父View
+    - LayoutInflate可以通过Factory2，Factory来代理View的创建过程，Factory只能设置一次，重复设置会抛错
+    - AppcompatActivity在onCreate()中使用AppcompatDelegateImpl.installViewFactory()来设置了LayoutInflater.Factory2，这一步是为了替换原有的如TextView为AppcompatTextView。所以如果要代理Factory须要在super.onCreate()之前设置，并且主动调用AppcompatDelegateImpl.onCreateView()来确保AppcompatView的生成。
+- 额外的问题
+    - 优化：可以设置Factory代理，来直接new出一个View，避免后续的反射过程

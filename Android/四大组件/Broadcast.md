@@ -1,0 +1,20 @@
+# Broadcast
+- 使用
+    - BroadcastReceiver可以静态注册在AndroidMainfest中由系统启动（PackageManageService），
+    - 也可以通过 ContextImpl.re gisterBroadcastReceiver()进行动态注册。动态注册的优先级高于静态注册，如果同时注册了静态和动态，将会回调两次onReceive()，使用动态注册也需要及时解注册。无论动静，都需要Filter来表明自己接收的action
+    - 使用ContextImpl.sendBroadcast/sendOrderedBroad来发送无序/有序广播。有序广播会优先发给优先级高的Receiver，同时这种广播可以被拦截。
+    - 粘性广播需要注册权限，但是粘性广播因为不安全已经被弃用
+- 原理
+    - 动态注册
+        - 一开始最终调用ContextImpl.registerReceiverInternal()。该方法中先创建ReceiverDispatcher并缓存，然后获取其InnerReceiver。RPC调用AMS.registerReceiverWithFeature()，向其传递InnerReceiver和Filter。
+        - AMS.registerReceiverWithFeature()：1、AMS会缓存IIntentReceiver和Filter至mRegisterReceiver(存RegisterList)和mReceiverResolver（存BroadcastFilter）(RegisterList用于记录IIntentReceiver和BroadcastFilter，而BroadcastFilter记录了RegisterList和Filter)中。2、从mStickyBroadcasts中过滤出匹配的粘性广播列表并循环，循环中创建BroadcastRecord(记录了刚刚创建的BroadcastFilter)加入到BroadcastQueue中，并调用BroadcastQueue.scheduleBroadcastLocked()发送无序广播(有序粘性广播已经脱出顺序了，所以也当成无序广播发送)。
+    - 发送和接收
+        - 最终调用ContextImpl.sendBroadCast()，其RPC调用AMS.broadcastIntentWithFeature -> AMS.broadcastIntentLocked()
+        - AMS.broadcastIntentLocked()中，1、如果是粘性广播则存储至mStickyBroadcasts。2、先根据intent从mReceiverResolver过滤出接收者(BroadcastFilter集合，无论是有序还是无序广播过滤出的集合已经根据优先级排序)存储至BroadcastRecord中，然后获取BroadcastQueue，向Queue添加Record。(这个流程会走两次，只是有序广播和无序广播的存储位置不同，先是无序发广播存在Queue.mParallelBroadcasts，后是发有序广播存在Queue.mDispatcher)。3、然后调用queue.scheduleBroadcastsLocked()来发送广播，然后会通过BroadcastQueue中的Handler最终调用processNextBroadcastLocked()方法。
+        - BroadcastQueue.processNextBroadcastLocked()方法中，该方法会先发送无序广播，然后发送有序广播。1、发送无序广播的时候会双循环，外循环mParalledBroadcast取出BroadcastRecord，然后内循环Record的BroadcastFilter调用deliverToRegisteredReceiverLocked()方法，最终调用performReceiveLocked()。2、发送有序广播时循环调用mDispatcher.getNextBroadcastLocked()，然后也是调用到performReceiverLocked()
+        - BroadcastQueue.performReceiverLocked()中，会调用Application.scheduleRegisteredReceiver()，该方法没有发送给H，直接调用了InnerReceiver.peformReceive()，该方法最终通过ReceiverDispatcher.peformReceiver通过 H.post ()运行BroadcastReceiver.onRecevie()
+- 其他
+    - 1、在AMS.broadcastIntent()方法中，会给Intent添加FLAG_EXCLUDE_STOPPED_PACKAGES标记，这样不会打开未启动的App的静态注册接收者；如果明确要打开需要主动添加FLAG_INCLUDE_STOPPED_PACKAGES标记
+    - 2、ReveiverDispatcher原理类似与ServiceDispatcher。前者存了InnerReceiver和BroadcastReceiver；后者存了InnerConnect和ServiceConnection
+    - 3、广播的发送接收逻辑会交由AMS的内部成员BroadcastQueue来处理。BroadcastRecord则记录了广播的接受者（BroadcastFilter）和广播的有序性
+    - 4、粘性广播因为不安全已经被弃用

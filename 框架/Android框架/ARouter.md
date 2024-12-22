@@ -1,0 +1,30 @@
+# ARouter
+- 使用
+    - 在对应的IProvider/Fragment/Activity/Interceptor使用@ARouter，在编译后APT会自动编译时注解@Route生成Root/Group/Provider/Interceptors四大类型的类。
+    - 初始化使用ARouter.init()初始化
+    - 跳转/获取对应的类使用ARouter.getInstance().build(path).navigation()
+- 编译生成的类
+    - Root：记录每一个Group信息，使用Map记录<组名，组名对应Group的Class对象>
+    - Group：记录组下的每一个成员，组按path的//之间的字符串进行分组。可以生成多个组对应的Group类，组下成员内容即IProvider/Fragment/Activity（无拦截器），使用Map记录<路径名，RouteMeta>
+    - Providers：记录所有实现IProvider的类信息，使用Map记录<接口全限定名，对应实现类Class对象>（通常我们查找Provider都是使用的Group，不会使用Providers这个类，这个类一般是ARouter使用的，他记录了接口全限定名和接口实现类的映射关系。比如SerializationService和其实现类JsonServiceImpl会有一个映射，这样ARouter可以根据自己定义的接口SerializationService来查找我们实现的类JsonServiceImpl）
+    - Interceptors：记录所有实现拦截器的类信息，使用map记录<优先级，拦截器class对象>
+    - RouteMeta：IProvider/Fragment/Activity在记录至上述类中，是通过RouteMeta来记录的（拦截器除外，拦截器直接记录拦截器的Class对象），该类记录了路由的路径，组，优先级，Class对象等信息。
+- IProvider：用于实现类似于静态方法的服务。分两大类
+    - 1、完全由开发者自定义：实现接口IProvider，通过navigation()获取后，自己调用自己实现的方法
+    - 2、ARouter内置IProvider：ARouter的一些功能会使用到内置的IProvider。如果要让这些功能生效，需要实现对应继承至IProvider接口的接口（如SerializationService）并注册。ARouter在使用对应功能时会自动生成对应的实现类，如果不为空就会调用对应实现类的方法来完成功能（如withObject()依赖于SerializationService去做序列化）。
+- 原理
+    - Arouter.init()：会调用_Arouter.init()和_Arouter.afterInit()
+        - _Arouter.init()：该方法调用到LogisticsCenter.init()，方法中含有两个分支，第一个分支为自动注册；如果未开启自动注册走的都是第二个分支。1、先判断版本是否更新（根据包名和版本）。如果未更新则直接从SharedPreference取出Set集合，否则会扫描包下的dex文件，找出符合的类(有alibaba...aroutes前缀的类)，并用Set集合收集这些类名，然后存储（这里的扫描使用线程池进行，并使用CountDownLatch来让主线程等待扫描完成）。2、遍历Set集合并通过反射实例化出编译期间生成的那些类。这些类包括Root/Providers/Interceptors（不包括Group）三个类，然后分别调用其loadInto方法收集Group(由Root记录)/Provider/Interceptor消息至Warehouse这个类中
+        - _Arouter.afterInit()：该方法调用navigation去加载path为/arouter/service/interceptor的服务（InterceptorServiceImpl，这是ARouter自己实现的Provider，他实现了拦截器的功能）
+    - navigation()：所有的navigation()/build()方法最后都会创建一个包含path和group信息的PostCard，然后传入一个参数为PostCard的navigation()方法中。1、该方法中首先会调用LogisticsCenter.completion()，然后PostCard就会被填充对应的信息（Provider，Activity实现类的Class对象等）。2、交给InterceptorServiceImpl去处理拦截功能。3、处理完拦截后在onContinue()回调中继续处理PostCard。这时候会根据PostCard的type去做Activity跳转/返回Fragment/返回Provider等功能
+    - LogisticsCenter.completion()：该方法会先从Warehouse.routes中获取对应的RouteMeta（但是一开始是空的，因为init()没有做Group下内容的加载）。RouteMeta为空时，则通过Warehouse.groupIndex去获取其所在的Group，反射实例化后调用loadInto()加载Group下的RouteMeta信息(加载后该Group会从groupIndex中移除)。之后再次调用completion()方法，这次RouteMeta经过前面的加载有值，然后就会将RouteMeta的信息设置给PostCard，同时如果是Type是Provider还会反射实例化一下。
+        - provider会在这一步被实例化，而fragment会在navigation()中被实例化，这是因为provider被要求只能实例化并初始化一次，所以这一步实例化后会进行缓存，之后相同的provider从缓存返回，可得fragment每次返回的都是不同实例
+- 拦截器实现
+    - 1、在_ARouter.afterInit()中拦截器的服务InterceptorServiceImpl会被加载，该类由ARouter实现提供。初始化后就会调用InterceptorServiceImpl.init()方法。
+    - InterceptorServiceImpl.init()：会做各个拦截器的加载，即通过遍历Warehouse.interceptorsIndex，并反射实例化拦截器。该容器是一个TreeMap集合并重写判断不能使用相同key。所以加入该集合的拦截器会按优先级排序。加入后会调用interceptorInitLock.notifyAll()(该锁会在拦截器未加载完成时被循环等待)。
+    - InterceptorServiceImpl.doInterceptions()：navigation()方法交给拦截器处理时会调用这个方法。1、未加载完成时循环等待interceptorInitLock。2、创建CountDownLatch并通过责任链模式调用Interceptor.process()，通常我们会在process()中调用Callback.onContinue()，而onContinue()又会取下一个拦截器调用其process()，并调用CountDownLatch.countDown()。CountDownLatch用于process()方法之后的计数，其初始值为拦截器数，值为0时说明所有拦截器都调用了onContinue()没有拦截。
+- 序列化实现
+    - withObject()序列化实现：使用这个功能 需要实现SerializationService并注册。在调用withObject()时，会通过该Provider来将Object转化为String存入Bundle中。
+    - 而反序列化在inject()也是对应使用该Provider来将String转为Object并设置值。这其中通过AutowiredServiceImpl（和拦截器一样是ARouter提供的Provider）使用了ISyringe这个类（实现类在编译期间生成）来帮助实现注入
+- 优化
+    - 使用ARouter的自动注册，通过Gradle插件开启插桩功能，来在编译器自动插入代码。可以避免Arouter.init()对Dex文件的扫描从而优化启动时间。

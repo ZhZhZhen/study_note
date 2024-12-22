@@ -1,0 +1,40 @@
+# Activity
+- 生命周期
+    - 回调函数
+        - onCreate：生命周期第一个方法，表示正在被创建
+        - onRestart：重新启动，在回调onPause和onStop之后重新启动便会回调
+        - onStart：表示正在被启动，表示Activity可见，但不在前台无法与用户交互
+        - onResume：在前台开始活动，可以进行交互，view从onResume之后才开始绘制
+        - onPause：表示Activity正在停止，此时进入后台，onPause必须执行完新的Activity才会开始创建(回调onCreate等后续回调)(如果是回退操作，那么onPause执行完，才会回调上一个Activity的onRestart,onStart,onResume)，所以不能执行长时间操作
+        - onStop：表示Activity即将停止，表示Activity不可见
+        - onDestroy：生命周期的最后一个回调，表示Activity即将被销毁
+        - *onSaveInstanceState：回调时机在小于P是在onStop()之前，大于等于P是在onStop()之后（代码在ActivityThread.callActivityOnStop()
+            - 该函数所存储的Bundle，onCreate的方法参数也会记录，当正常启动时该参数为null，调用onSaveInstanceState之后才有值；而onRestoreInstanceState只有调用过onSaveInstanceState才会被调用，所以他的方法参数是一定有值的。
+            - 该方法由Activity通知Window（PhoneWindow. saveHierarchyState()） ，后通知Window上的顶层View（ViewGroup. saveHierarchyState ）去分发，该方法内部调用 dispatchSaveInstanceState() ，通过一个SparseArray，以View的id做key，保存内容Parcelable做value，以此来保存所有View的数据。
+        - *onRestoreInstanceState：当Activity被回收时，重建后回调，时机在onStart之后
+        - onConfigurationChanged：当在Manifest文件中配置了configChanged选项，那么对应选项改变时不会导致Activity重建(因此也不会调用onRestoreInstanceState)，取而代之的是调用该方法并通过参数告知相应信息。
+    - 具体情况
+        - 第一次启动回调：onCreate->onStart->onResume
+        - 打开新的Activity或切换至桌面，旧Activity回调：onPause->onStop。（如果打开透明主题Activity，则只回调onPause）(如果打开的是Dialog，则不回调函数)
+        - 按下back键回退：onPause->onStop->onDestroy
+        - 回到原Activity：onRestart->onStart->onResume
+        - 回到原Activity，但是Activity被系统回收了：等同于第一次启动回调
+- 启动模式
+    - standard：标准模式
+        - 由启动的Activity来决定新Activity的栈
+        - 当启动发起者为单实例模式时，则由自己的taskAffinity属性决定所在的栈
+    - singleTop：栈顶复用，如果新Activity与位于栈顶的Activity相同，则不重新创建；否则重新创建
+        - 由启动的Activity来决定新Activity的栈
+        - 当复用时会回调onPause->onNewIntent->onResume，启动参数会通过onNewIntent告知
+    - singleTask：栈内复用，如果该模式的Activity所需栈不存在，则创建Activity的同时创建栈；如果已存在，无该Activity时，创建该Activity；有该Activity时，则移至栈顶，并清除其上方Activity。
+        - 当在顶层复用时会回调onPause->onNewIntent->onResume，当在后台被复用时会回调onRestart->onStart->onNewIntent->onResume
+    - singleInstance：单实例模式，该Activity启动时，系统会为它创建一个独一无二的任务栈，该栈中只会有这个Activity
+        - 即使为该模式指定同名taskAffinity，也会启动新的任务栈，此时该任务栈会因为同名而无法显示在任务栈中（但是是不同的任务栈）
+        - 由该模式启动的其他模式的Activity a，会在a所指定的taskAffinity栈中创建
+    - 其余
+        - TaskAffinity属性：1、通过该属性来指定任务栈，不与包名相同则为不同的任务栈，该参数默认为包名。启动时若无属性名的任务栈，则会创建；2、当与allowTaskReparenting（这个属性只能和Standard和SingleTop配合）联用时，会对目标Activity进行迁移，使得目标Activity所在应用被打开时，迁移到对应任务栈中。3、单实例模式启动的其他模式的Activity会根据该属性创建其所在的栈。
+        - 任务栈：1、当一个任务栈中的Activity被复用时，会导致其所在的任务栈被移动至前台，这使得回退时，要先回退完这个栈中的Activity（表现为未按打开顺序依次关闭），才会到其他任务栈。2、当一个应用启动了不同的任务栈，会在任务栏中看到不同的任务栈。3、当从应用图标点击打开时，会打开启动页面所属的任务栈(无则创建栈，并创建启动页)。4、前台可以有多个任务栈，但是前台的任务栈们进入后台时，维持的先后顺序会被拆开，此时再次返回前台的任务栈只有当时最顶层的任务栈。5、即使一直退出到所有Activity都移出了，查看任务栏依然会有该任务栈，此时点击会打开该任务栈曾经打开的第一个Activity
+- FLAG
+    - NEW_TASK：1、 启动时，若无所属的任务栈，则创建并在该任务栈中创建该Activity。 2、当使用非Activity的Context启动Activity时，该标志用于表明启动新的栈(否则会无法启动)。3、若已经创建该Activity，在所在的任务栈中启动该Activity，将失效；在另一个任务栈中启动，将切换至该Activity所处的任务栈中，并呈现该栈离开时的状态(该Activity如果在后台，还是在后台，因为只是切换任务栈)。
+    - CLEAR_TOP： 单独使用时，当启动Activity，会清除离栈顶最近的同类实例及以上的所有Activity， 并创建新的实例入栈
+    - EXCLUDE_FROM_RECENTS(一般在manifest中配置)：当使用该属性时，所属Activity所处的任务栈不会显示在任务栏中（需要拥有该属性的Activity位于栈底才会生效）

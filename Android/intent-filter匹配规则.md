@@ -1,0 +1,14 @@
+# intent-filter匹配规则
+- intent-filter只用于隐式intent，显式intent无视匹配规则。
+- 数量规则
+    - intent可以指定0/1个action，0/1个data，0/多个category。但是startActivity()/startActivivtyForResult()会默认给intent额外添加DEFAULT的category
+    - intent-filter可以指定0/多个action，0/多个data，0/多个category
+    - 组件可指定多个intent-filter，隐式intent匹配其中之一即可匹配成功。
+- 匹配规则
+    - action：intent的action必须与intent-filter的action之一匹配。若intent-filter未指定action，则所有intent无法匹配；若intent无action，则可与指定了任意action的intent-filter匹配。
+    - category：intent的所有category必须被intent-filter的category匹配。若intent-filter不能匹配intent的所有category，则无法打开；intent的category为0时则必定匹配（因为startActivity()/startActivityForResult()会默认为Intent添加DEFAULT的category，所以想匹配成功的intent-filter必须包含DEFAULT）
+    - data：intent的data必须与intent-filter的data之一匹配。若intent指定data，intent-filter未指定则匹配失败；若intent未指定data，则intent-filter必须未指定才匹配成功。（当intent-filter的data不指定URI时，默认为content:或file:）
+- exported属性
+    - 该属性为true时可被其他开发者id的应用启动
+    - 无intent-filter的默认该属性为false
+    - 12版本以上必须显示声明该属性为true/false。且category为LAUNCHER的组件需要为true（不然应用无法从桌面打开）

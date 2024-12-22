@@ -1,0 +1,16 @@
+# Android类加载器 
+- 查看java.lang.ClassLoader，其中增加了BootClassLoader这个类，提供了getSystemClassLoader()这个方法。（该文件应该是被Android修改了用以适配加载Dex）
+- getSystemClassLoader()用以返回一个PathClassLoader，其父ClassLoader为BootClassLoader。
+- 双亲委派：Android中的ContextImpl，LoadedApk所获取的类加载器都是通过getSystemClassLoader()得到的PathClassLoader。其父ClassLoader为BootClassLoader
+- ClassLoader种类
+    - BootClassLoader：Android最顶层的父加载器，继承至ClassLoader，其重写了loadClass()方法，通过Class.forName()获取类，在获取类失败时就会返回null，而不是向父加载器请求（因为他是顶级的，没有父加载器）。
+    - BaseDexClassLoader: 继承至ClassLoader，实现了findClass()方法，通过DexPathList.findClass()来加载类，该方法会将dex文件
+        - 四个构造参数dexPath, optimizedDirectory, librarySearchPath, parent对应(apk或jar目标路径，dex2oat优化的产物路径(26后弃用，不能指定，只能使用默认路径)，包含native库的路径，父加载器)
+        - DexPathList构造方法中会记录传入的BaseDexClassLoader，使用传入的dexPath收集文件形成dexElements，使用libraryPath收集该路径下文件
+        - DexPathList. ()：该方法把dexPath下的文件转化为dexFile（如果没解压会先解压）然后通过 Elements存储并收集到dexElements中 [makeDexElements]("http://androidxref.com/5.0.0_r2/s?refs=makeDexElements&project=libcore")
+        - DexPathList.findClass()：循环dexElements，调用Elements.dexFile.loadClassBinaryName()获取Class对象，获取到就跳出循环返回
+    - PathClassLoader：作为系统类和应用类的加载器，继承至BaseDexClassLoader，可以用于加载已经安装的apk。仅仅对BaseDexClassLoader构造方法进行调用，无重写其他方法，其中optimizedDirectory传入为null，这使得odex优化的文件路径为默认的/data/dalvik-cache
+    - DexClassLoader：继承至BaseDexClassLoader，可以加载任意路径下未安装的apk或jar。与PathClassLoader的区别在构造方法中传入了optimizedDirectory路径来存放odex优化的文件。
+- 使用：1、创建PathClassLoader/DexClassLoader，其中加载apk的路径使用存放apk的路径。2、调用loadClass查找目标类。
+    - optimizedDirectory在8.0后被弃用，因此只能使用默认的/data/dalvik-cache作为dex2oat产物的存储路径
+    - Android系统使用PathClassLoader进行应用类和系统类加载，但上述两只类加载器都可以使用于加载指定目录的apk

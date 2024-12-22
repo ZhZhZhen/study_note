@@ -1,0 +1,13 @@
+# ContentProvider
+- 使用
+    - 用于跨进程提供查询，而数据源可以使用本地存储或内存或网络等等
+    - 通过 ContextImpl.ge tContentResolver().xxx()方法来进行增删改查（如query()），使用时通过URI来区分不同的ContentProvider
+- 原理
+    - 创建
+        - 创建过程由 ActivityThread.ma in()方法开始，main()方法中会先创建MainLooper并运行，之后创建ActivityThread并调用其attach()，该方法会RPC调用 AMS.at tachApplication()，处理完相关信息后会RPC调用 ApplicationManager.bi ndApplication，然后通过H回调ActivityThread.handleBindApplication()
+        - handleBindApplication()会做1、创建ContextImpl，使用ContextImpl的ClassLoader创建Instrumentation。2、调用 LoadedApk.ma keApplication()创建Application。3、调用InstallContentProviders()创建ContentProvider。4、回调Application.onCreate()
+        - 上述第3步中会根据AMS返回的信息创建ContentProvider，具体为调用 installProvider()方法，该方法当前情况下会去创建ContentProvider并回调其onCreate()，之后缓存在ActivityThread.mProviderMap中。创建完所有ContentProvider之后，第3步之后会调用 AMS.pub lishContentProviders()把创建的IContentProvider(会被包装成一个Holder)传递给AMS，由 AMS.mP roviderMap进行缓存
+    - 使用
+        - 使用getContextResolver实际获取的是ContextImpl的内部类ApplicationContextResolver。然后分析getContextResolver().query()，1、首先会调用 acquireUnstableProvider()获取IContentProvider。2、然后使用IContentProvider进行跨进程调用
+        - 上述第一步中，acquireUnstableProvider()：1、会获取Uri.getAuthority()，然后调用ActivityThread.acquireProvider()，该方法中，会从mProviderMap查看是否有缓存ProviderClientRecord，有则直接返回IContentProvider；2、无则RPC调用AMS.getContentProvider()获取，AMS也会通过缓存mProviderMap中获取缓存ContentProviderRecord，有则跨进程返回ContentProviderHolder。3、无则使用startProcessLocked()开启新进程并等待IContentProvider发布，最后获取对应的Holder返回。4、从AMS获取后，ActivityThread会调用一次installProvider()方法，当把该Holder缓存在mProviderMap中
+        - 第一述第二步中，ApplicationContxtResolver会通过acquireUnstableProvider()获取到IContentProvider远端代理，他对应的服务端类是 ContentProvider.Tr ansport，所以调用 IContentProvider.query()->Transport.query->ContentProvider.query，最终完成调用

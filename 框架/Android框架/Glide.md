@@ -1,0 +1,56 @@
+# Glide
+- 使用
+    - with(context).load(url).into(ImageView)
+    - 自定义View使用CustomViewTarget来调用into()
+    - 后台下载资源，替换into()为submit()，该方法获取一个FutureTarget。调用FutureTarget.get()获取资源
+- 原理
+    - Glide.with()：
+        - 1、第一次使用该方法会实例化Glide单例(该单例使用ApplicationContext构建)。
+        - 2、然后通过该单例获取RequestManagerRetriever。使用RequestManagerRetriever.get()去获取RequestManager。
+        - 3、根据传入参数和线程环境决定返回什么RequestManager。
+            - 参数Context是ApplicationContext或调用环境非主线程：则返回applicationManager，这个RequestManager由Glide单例间接持有
+            - 参数Context是Activity/参数是Fragment：在该Activity/Fragment中添加一个SupportRequestManagerFragment。之后让该Fragment持有新建的RequestManager并注册响应的Lifecycle（该Fragment通过自己的生命周期管理该RequestManager）。之后返回该RequestManager
+            - 1、RequestManager实现了LifecycleListener接口，并在自己的构造方法中向传递过来的Lifecycle注册了自己。2、ActivityFragmentLifecycle额外实现了onStart()/onStop()/onDestroy去对注册者回调，会在SRMFragment对应生命周期调用；3、而ApplicationLifecycle()仅仅实现了监听者的注册和解注册，并没有去回调注册者
+    - RequestManager.load()：通过asDrawable()/asGif()/asBitmap()返回一个RequestBuilder，然后调用RequestBuilder.load()。而RequestBuilder.load()会把传入的参数记录在Model中用于之后的资源加载，同时设置一些相关配置（比如缓存策略）
+        - asDrawable()/asGif()中生成的TranscodeClass用处：(比如GifDraw.class)，该对象在DecodeJob.onDataReady()回调中会用于Resource的生成，根据TranscodeClass的实际值Glide.registry会返回对应的Decoder。而Decoder.decode()就会返回对应的Drawable（如ByteBufferGifDecoder会把ByteBuffer最终转化为GifDrawable）
+    - RequestBuilder.into()：into()方法最后都会生成一个Target，被用于最终调用一个into()方法。该方法中会创建Request(一般为SingleRequest)，然后通过让requestManager记录target和request方便在对应生命周期回调。并调用request.begin()来开启资源请求
+    - SingleRequest.begin()：1、该方法第一次会调用Target.getSize()获取要加载的图片宽高。如果已经获得宽高/调用后Target.getSize()之后都会回调SingleRequest.onSizeReady()。2、onSizeReady()中会通过Engine.load()去加载资源。3、Engine.load()该方法中先查找内存缓存，如果没找到内存缓存的资源则会创建DecodeJob交给EngineJob.start()去开启线程池从本地/数据源中获取资源。
+    - Engine.load()：1、先生成内存缓存key，从内存缓存中获取图片(使用相同key依次从ActiveResources->MemoryCache中查找)，找到则返回。 2、否则生成DecodeJob并通过EngineJob.start()加入线程池。DecodeJob用于从本地/数据源获取图片。3、生成LoadStatus包装着EngineJob用于响应页面的生命周期回调来取消加载工作
+    - DecodeJob 含有图片加载信息，实现了Runnable，run()方法会根据缓存策略依次按优先级从ResourceCacheGenerator/DataCacheGenerator/SourceGenerator获取数据。
+        - ResourceCacheGenerator 负责从本地缓存获取转化后的资源(宽高根据Target加载)。所以key中包含的信息有图片的宽高，优先级，预期Drawable，url等。图片的缓冲由on
+        - DataCacheGenerator 负责从本地缓存获取原始资源。所以获取时的key仅仅包含signature，sourceId。
+        - SourceGenerator 在没有缓存缓存时该类从数据源获取资源(如网络)
+    - ()：首先会根据缓存策略选择对应的Generator，调用Generator.startNext()获取数据，如果未获取成功会去取下一个Generator并获取数据 [DecodeJob.run]("http://DecodeJob.run")
+    - DataFetcherGenerator(三个Generator实现的接口)。创建DataFetcher.loadData()来获取输入流，并通过onDataReady()把输入流回调出去
+        - ResourceCacheGenerator/DataCacheGenerator.startNext()：通过DiskLruCache去获取File(使用的key不同)。然后获取File的输入流。
+        - SourceGenerator.startNext()：从数据源获取输入流。
+        - DataFetcher用于从对应地方获取输入流，通过实现loadData()来实现输入流的获取。(比如HttpUrlFetcher从网络获取/ByteBufferFetcher从本地获取)
+    - DecodeJob.onDataFetcherReady()->decodeFromRetrievedData()：当DataFetcherGenerator.startNext()回调onDataReady()就会一步步回调到DecodeJob.onDataFetcherReady()。然后调用decodeFromRetrievedData() 。1、该方法借助Glide.Registry获取Decoder，将对应的Fetcher内部的输入流转化成Resource，这一步会使用宽高限制去加载资源。2、接着调用notifyEncodeAndRelease(Resource)去通知资源加载完成。3、首先会调用EngineJob.onResourceReady()向主线程发送消息，既而调用到SingleRequest.onResoueceReady()->Target.onResourceReady()完成资源的显示。然后会判断是否要对加载后的图片进行缓存
+- 缓存
+    - 1、SingleRequest：SingleRequest内部成员变量持有者Resource，在调用begin()开始加载时(如果之前加载过，状态会置为COMPLETE)如果状态为COMPLETE会直接使用该成员变量回调onResourceReady()。
+    - 2、ActiveResources：用于存储当前页面正在使用的资源。在Engine.load()被使用到，用于获取内存中的缓存，内部有一个Map<key，弱引用<资源>>来缓存资源。
+        - 存储时机：1、在资源被DecodeJob加载好后会在回调EngineJob.onResourceReady()时被回调加入。2、在从缓存MemoryCache取出时被加入。
+        - 释放时机：在页面回调onDestroy()既而释放资源时，会被释放加入到MemoryCache中
+    - 3、MemoryCache：用于存储不在当前页面的内存缓存。继承至LruCache，在Engine.load()被使用到，如果未从ActiveResources获取到就会尝试从这里获取。
+        - 存储时机：在页面回调onDestroy()既而释放资源时，ActiveResources的资源会被释放加入到MemoryCache中
+        - 释放时机：Engine.load()通过memoryCache.remove()的方式从MemoryCache获取数据，取到就会从中移除加入ActiveResources
+    - 4、DiskCache：本地存储原版资源和非原版资源（根据长宽修改后），继承至DisLruCache
+        - 存储时机：1、对于原版文件，会在SourceGenerator请求获取到数据后，使用DataCacheKey进行存储。2、对于非原版文件（根据长宽修改后），会在回调到decodeJob.onDataFetcherReady()，并在notifyEncodeAndRelease()方法中对获得的Resource使用ResourceCacheKey存储。
+        - 加载时机：1、原版文件在DataCacheGenerator.startNext()中使用 DataCacheKey 加载。2、非原版文件在ResourceCacheGenerator中使用ResourceCacheKey加载
+        - *如果SourceGenerator.onDataReady()走分支不缓存原版图片到本地，该分支会直接回调DecodeJob.onDataFetcherReady()，该方法会通过MultiFetcher(内含2个HttpUrlFetcher)从网络获取压缩后的图片。然后1、通过主线程回调SingleRequest.onResourceReady最终通过ImageViewTarget显示。2、判断是否要缓存压缩后文件并进行缓存
+        - *如果SourceGenerator.onDataReady()走分支缓存原版图片到本地，则会设置dataToCache，之后再次调用自己的startNext()。这次startNext()会将InputStream的原版图片缓存至本地。之后会立刻通过DataCacheGenerator获取本地文件，DataCacheGenerator.onDataReady()会一步步回调到DecodeJob.onDataFetcherReady()，该方法会通过ByteBufferFetcher从本地文件获取压缩后的图片。然后1、通过主线程回调SingleRequest.onResourceReady最终通过ImageViewTarget显示。2、判断是否要缓存压缩后文件并进行缓存
+- 动图的实现
+    - 动图的加载：
+        - 1、动图的播放由GifDrawable完成，当ImageViewTarget.setResourceInternal()设置资源时/onStart()时，会调用GifDrawable.start()/Target.onStop()时会调用GifDrawable.stop()。
+        - 2、 GifDrawable内部持有GifFrameLoader，并实现了GifFrameLoader的观察者(回调方法onFrameReady())，GifDrawable.start()/stop()做的就是向GifFrameLoader注册/解注册自身的回调。
+            - GifFrameLoader.subscribe()：注册回调后，判断观察者是否大于0，如果大于0则调用start()->loadNextFrame()开始加载下一帧
+            - GifFrameLoader.unSubscribe()：解注册，判断观察者是否为0，为0调用stop()，stop()仅仅把isRunning置为false。
+        - 循环加载的关键GifFrameLoader.loadNextFrame()：1、判断isRunning为false则返回。2、如果上一帧的DelayTarget未使用，调用onFrameReady()使用上一个Target并返回。3、计算下一帧延时，让gifDecoder.advance()向前移动一帧，并新建DelayTarget然后请求下一帧的加载。4、当DelayTarget.onResourceReady()被回调，存储获得的资源，并根据之前计算的延时来发送Handler消息MSG_DELAY。5、消息接收后，会调用onFrameReady()，该方法会回调自身观察者的onFrameReady(即GifDrawable.onFrameReady)并调用loadNextFrame()来实现循环。
+        - GifDrawable.onFrameReady()：该方法调用了Drawable.invalidateSelf()->ImageView.invalidateDrawable()->ImageView.invalidate()。既而触发了GifDrawable.draw()然后就会使用GifFrameLoader.getCurrentFrame()向刚刚的DelayTarget获取Bitmap，并通过canvas绘制出来。
+- 生命周期
+    - 1、当对应页面回调onStart()/onStop()/onDestroy()，会通过SupportRequestManagerFragment通知RequestManager。
+    - 2、RequestManager有两个成员变量RequestTracker和TargetTracker，这两个成员变量在into()方法最后会把target和request加入。分别用于触发Rquest和Target在对应生命周期需要被执行的方法。比如：Request会通过LoadStatus来中止正在加载图片的操作；Target会在对应生命周期开启/暂停动画。RequestTracker中用pendingRequest来记录那些被暂停可能会再次请求的Request
+- 其余
+    - 1、内存缓存key/本地缓存key：使用了图片的宽高，来源(如url)，优先级，预期转化的Drawable，加载图片的配置来生成一个key。当使用DataCacheGenerator从本地获取时，使用的key是只包含来源信息的，因为这种方式的图片来源仅仅保存了图片的原版信息
+    - 2、对于来自load()的参数为Bitmap，Drawable时，Glide会采用无缓存策略(缓存策略影响的是本地缓存，与内存缓存无关，因为这两个对象是由开发者自己从内存中获得的，Glide没必要再缓存一遍，只有从网络/本地获取才可以被缓存。但是不知道为什么来自ResourceID的也会被缓存
+    - 3、缓存策略，影响本地缓存。在 ()中会根据缓存策略，使用不同的Generator获取图片（顺序： 转化后的图片本地缓存>图片原版缓存>从源头加载图片) [DecodeJob.run]("http://DecodeJob.run")

@@ -1,0 +1,15 @@
+# SharePreferences
+- 实现
+    - SP中有3把锁，1、(mMap锁)读取文件数据时进行getXXX()操作需要等待mMap写入完成（比如初始化，还有后续Editor对mMap的内存更新），使用锁mLock(SP的成员)。2、在进行Editor.putXXX()时多个线程的putXXX()操作使用锁mEditorLock(Editor的成员)。3、在多个Editor写入本地文件时writeToFile()使用锁mWritingToDiskLock(SP的成员)
+- 缺点
+    - SP初始化的时候会掉用loadFromDisk()读取数据，这使得一开始的getXXX()操作会因为loaded=false使得线程进入循环等待，直到加载loadFromDisk()完成loaded=true，循环等待跳出，才会从mMap中取得数据。
+    - SP的数据为全量更新，一次更新会导致内存的数据全部写入文件。虽然apply()写入是异步的在子线程进行，但是写入时会向QueuedWork传递一个Runnable用于在必要工作前等待写入完成。同时在handlePauseActivity()/handleStopActivity()/handleStopService()方法中会通过QueuedWork.waitToFinish()执行到Runnable.run()。这使得写入数据过多时，这些方法所在的主线程会进入等待。而commit()是同步的不用说也会有该问题(但是commit由于是同步的不会使用QueuedWork来让主线程等待其完成，所以开一个子线程使用commit()也行能解决部分问题？)
+    - SharePreference在创建时使用MODE_MULTI_PROCESS（该mode在SP修改时会重新读取文件内容，由于SP是将数据全部读入内存中使用，所以跨进程更新时，必须通知其他进程的SP全部更新一次）可以支持跨进程，但是由于没有多进程的同步措施，依然会有概率导致数据覆写的问题。
+    - SP可以使用相同的key写入不同类型的数据，这使得读取时会发送数据类型转化错误
+- Editor.commit()：1、该方法会调用commitToMemory()把数据先写入内存，然后会返回一个map（其实就是存着所有数据的map）。2、调用enqueueDiskWrite()，最终同步调用writeToFile()写入本地文件
+- Editor.apply()：1、调用commitToMemory()同commit一样。2、创建Runnable(awaitCommand)，其内部是等待写入硬盘操作的完成，使用CountDownLatch实现，并向这个Runnable提交给QueueWork. *sFinishers* 。3、创建Runnable(postWrite)，该Runnable会在写入文件后被执行，作用是将刚刚的awaitCommand从QueueWork中移除。4、创建写入文件操作，该操作调用writeToFile()，并在之后执行postWrite.run()。然后将这个操作提交给QueueWork.sWork延迟100毫米后执行。
+    - QueueWork.queue()用于提交工作至QueueWork.sWork并立刻（或等待100毫米）执行。
+    - QueueWork.addFinsher()用于提交工作至QueueWork.sFinisher，但不会执行。只有调用QueueWork.watiToFinish()时，才会循环这个List，执行工作。
+    - 比如ActivityThread的handlePauseActivity()就会在回调完Activity.onPause()之后，调用QueuedWork.waitToFinish()去执行其中工作。如果写入文件操作太久，那么awaitCommand调用CountDownLatch.await()时就会被阻塞。导致主线程一直被阻塞挂起。
+- getXXX()：会使用mLock锁，来处理mMap读写的同步，然后会在loaded为false的时候循环等待加载的完成。加载完成后即调用mMap.get()来获取数据。
+- 写入：会创建一个文件备份原数据，然后开始写入新数据，写入成功时会把备份文件删除。当发生进程中断导致写入一半时退出。那么下次loadFromDisk()和writeToFile()就会发现有备份文件，从而删除写入一半的文件，将备份文件的文件名修改成新文件在进行后续的读取或写入

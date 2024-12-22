@@ -1,0 +1,27 @@
+# LifeCycle
+- ComponentActivity和Fragment都实现了Lifecycle，其功能都交由LifecycleRegistry
+    - Fragment在对应的生命周期调用performXXX()中，在回调完onXXX()就会调用mLifecycleRegistry.handleLifecycleEvent()
+    - 而ComponentActivity会在onCreate()中添加ReportFragment来帮忙做回调，ReportFragment在对应生命周期被回调时会调用getActivity.getLifecycle().handleLifecycleEvent()
+- LifecycleRegistry
+    - addObserver()：LifecyeRegistry内部使用FastIterableMap来记录ObserverWithState(该类持有Observer和Observer的状态State)。1、把Observer包成ObserverWithState并加入Map中。2、计算其所需的目标生命周期，通过循环地计算下一级状态调用ObserverWithState.dispatchEvent()回调到目标生命周期。3、如果需要同步一次状态会进行同步(当没有在进行addObserver()和moveToState()时)
+        - 为了解决在生命周期回调时调用addObserver()(这种情况下被添加的Observer必须与添加者一致)。1、在addObserver()/backwardPass()/forwardPass()调用ObserverWithState.dispatchEvent()前/后，会把当前被调用的ObserverWithState.mState加入List/从List移除。2、因为每次计算TargetState会根据（list末尾的状态/LifecycRegistry当前状态/前节点的状态）的最小值计算目标状态。所以新加入的Observer只会被回调到最小状态。
+    - handleLifecycleEvent()：该方法根据传入的生命周期计算所有观察者应该到达的状态，之后调用moveToState()，moveToState()会调用sync()去同步所有观察者的状态。
+        - 为了解决在生命周期过程/添加观察者并回调的过程 中又调用handleLifecycleEvent()的情况导致递归的情况。1、在调用sync()前后会设置mHandlingEvent，重复调用会发现该boolean为true而不再调用sync()。2、addObsever()在回调新的观察者状态前/后会让mAddingObserverCounter增加/减少，该int不为0也不会调用sync()(这种情况下addObserver()那边会调用一次sync())
+    - sync()：该方法使用isSynced()判断是否需要同步，需要同步就调用backwardPass()(头节点状态大于当前状态时)或forwardPass()(尾节点状态小于当前状态时)调整所有节点状态
+        - isSynced()：判断头节点和尾节点，尾节点和Resgistry.mState是否一致来判断是否要进行同步
+    - backwardPass()：获取当前Map的快照版本Iterator(从尾循环到头)。然后外循环去循环取ObserverWithState。内循环去调用ObserverWithState.dispatchEvent一步一步回调到期望状态
+    - forwardPass()：获取可增长的Iterator，然后双循环同上。
+- ObserverWithState
+    - 构造函数()：会把所有类型LifecyeleObserver(LifecycleObserver，LifecycleEventObserver，FullLifecycleObserver)全部转化为LifecycleEventObserver用于回调onStateChange()。
+        - 1、如果传入的对象只实现了LifecycleEventObserver，则不转换。
+        - 2、如果对象实现了FullLifecycleObserver，则返回FullLifecycleObserverAdapter(该类继承至LifecycleEventObserver，持有FullLifecycleObserver和LifecycleEventObserver)。其onStateChange()会根据Event回调对应的mFullLifecycleObserver.onXXX()方法和调用mLifecycleEventObserver.onStateChange()
+        - 3、如果检测含有生成类的构造器返回CompositeGeneratedAdaptersObserver。该步骤的类不知道是不是动态生成的类
+        - 4、如果对象只实现了LifecycleObserver，返回ReflectiveGenericLifecycleObserver。该类的构造器中会解析传入的对象。通过反射解析运行期注解，将对应Method和Event组成映射关系并注册。之后回调onStateChange()就会根据Event反射调用对应方法
+    - dispatchEvent()：1、使用参数Event去回调Observer.onStateChange()。2、然后根据Event去计算目标状态，并更新自己的状态
+    - Event和State：Event即ON_CREATE，ON_START这些时间。State即CREATED，STAETED这些状态。他们分别对应，例如当ON_CREATE和ON_STOP事件来时，对应CREATED状态
+- 观察者
+    - LifecycleObserver：空接口，使用时通常需要配合LifecycleEvent注解标志方法在哪个事件被回调。
+    - LifecycleEventObserver：继承至LifecycleObserver，提供了onStateChange()方法。LifecycleRegistry会把所有注册的观察者转化为LifecycleEventObserver
+    - FullLifecycleObserver：继承至LifecycleObserver接口，提供了onXXX()方法
+- FastSafeIterableMap：继承至SafeIterableMap，SafeIterableMap用链表实现了存储，其作用是为了在Iterator期间依然可以进行修改操作。而FastIterablerMap额外持有了一个HashMap记录节点用来解决链表查找过慢的问题(比如get()会通过HashMap来进行查找，而不是循环链表)
+    - 提供了3种Itererator。其中两种可以保存当前的快照并分别提供从头到尾和从尾到头的遍历方式(这种方式的指针保存了一个期望的终节点，遇到终节点就轮询结束)；还有一种是可以随着Map元素增加实时增长的Iterator(实际上就是判断是否有下一个节点)

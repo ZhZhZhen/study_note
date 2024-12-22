@@ -1,0 +1,11 @@
+# RxJava
+- 通过责任链模式来实现流式编程，通过观察者模式来实现响应，线程切换所使用的Scheduler本质是使用到了线程池和Handler。
+- 被观察者
+    - 1、自定义的被观察者：由Observable.create()创建，传入参数为ObservableOnSubscribe，重写subscribe()方法来实现如何处理任务，并在该方法中必要时机时回调观察者的方法（如onNext()）
+    - 2、模板被观察者：由框架提供，这一类的观察者主要提供操作符功能。（如flatMap对应observableFlatMap）。并通过责任链的模式来进行一层一层的观察者subscribe()的调用
+        - create()：该方法创建一个ObservableCreate来存储ObservableOnSubscribe。并在subscribeActual()方法中调用ObservableOnSubscribe.subscribe(Emitter)，其中Emitter包装Observer
+        - flatMap()：该操作符根据上一个被观察者的结果产生新的被观察者。1、在实现上使用MergeObserver包装了下游的Observer，传入上游的Observable.subscribe()。2、并在MergeObserver的onNext()中对上游Observable的结果进行Function.apply()调用将其转化为对应的Observable，3、然后调用其subscribe()并传入包装着下游Observer的观察者。由此传递结果给下游Observer。*flatMap()对应的MergeObserver里持有着队列和负载数，队列用来存放apply()转化后超出限流数的Observable（这种情况只出现在上游运行在多线程的情况，如果是单线程线性执行是不会出现堆积情况的）。flatMap()会有序的开始事务，但不保证其有序的完成。
+        - subscribeOn()：该操作符会将上游的被观察者Observable.subcribe()运行在指定的线程中。1、在subscribeActual()方法中直接将上游Observable.subcribe()包装成Runnable并托付给Scheduler.Worker来达到线程切换功能。2、在回调SubscribeOnObserver.onNext()时直接调用下游Observer.onNext()（所以后续如果不切合线程的话，回调onNext()等也是运行在该操作符所切换的线程中）。其中Android的主线程运行其实是发送给持有MainLooper的Handler，其他线程是交给线程池（流程scheduler.createWorker()，然后调用worker.schedule(Runnable)，worker则是通过线程池或Handler实现对应功能）（下同）
+        - observerOn()：该操作符会将下游的观察者Observer.onNext()运行在指定线程中。1、subscribeActual()中直接调用上游Observable.subcribe()并传入包装后的ObserveOnObserver。2、ObserveOnObserver.onNext()中。通过Scheduler.Worker去发送给对应的线程池/Handler。在run()中执行了下游Observer.onNext()的调用。（该操作符的Observer维护了一个队列用于同步/异步的情况，同步情况下，短时间内大量的onNext()会交由线程池的同一个线程去做，而异步的话则是交由线程池安排）
+        - *还有很多对应的操作符。实现的方式基本相同，1、通过提供Observable的对应操作符实现，重写subscribeActual()来对上游Observable.subcribe进行调用，并传入自己的包装Observer。每一个对应操作符实现的Observable.subscribeActual()都会调用上游的Observable.subscribe()通过责任链方式实现每一个被观察者要处理的逻辑。2、在对应的包装Observer的回调中去调用下游Observer的响应回调。这里也通过责任链的模式去做下游的Observer的函数回调。3、每一个包装的Observer都会在上游调用其onSubscribe()去存储上游传递来的Disposable，这样可以通过责任链的方式去取消订阅。
+- 取消订阅的实现：1、取消订阅的功能基本都实现在Observer中，调用dispose()方法时，会将自身的原子引用由自己替换成DISPOSE枚举。2、实现取消订阅的功能与线程中断类似，需要自己在subcribe()方法中判断isDisposed()并作出相应操作。否则dispose()是不会起作用的

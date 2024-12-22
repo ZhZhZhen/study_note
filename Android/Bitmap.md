@@ -1,0 +1,29 @@
+# Bitmap
+- 缓存优化
+    - 对于图片的加载使用三级缓存：1、内存缓存。2、本地缓存。3、网络读取
+    - Bitmap复用：在创建Bitmap时，BitmapFactoryOption.inBitmap可以传入一个Bitmap对象来达到复用该Bitmap的效果。（4.4之前要求复用的Bitmap所占内存需与预创建Bitmap一致，4.4之后要求大于等于即可用于复用）
+- 内存优化
+    - 如何加载：1、BitmapFactory.decodeXXX()方法中需要BitmapFactory.Options参数，将Option.inJustDecodeBounds设置为true，这使得加载的时候只会获取图片宽高信息。2、根据图片宽高和View的宽高计算适合比例（为2的指数1,2,4,8...），并设置Options.inSampleSize为比例值。3、Options.inJustDecodeBounds设置为false，重新使用decodeXXX()进行加载。
+    - BitmapFactory.decodeStream()：1、该方法使用InputStream加载，第一次获取宽高，会导致流偏移，第二次无法正常获取图片，所以第二次使用时需要先调用inputStream.reset()。2、或者使用文件描述符来代替流加载文件BitmapFactory.decodeFileDescriptor()
+- 大图加载
+    - 简介：BitmapRegionDecoder类用来编译(解码)在图片内不同的方形区域。1、先将大图加载到本地。2、使用BitmapFactory.decodeXXX()读取图片宽高(不要加载图片)。3、根据图片宽高信息，显示View宽高信息计算显示矩阵，使用BitmapRegionDecoder来加载。
+    - BitmapRegionDecoder.newInstance()：该方法有很多重载，传入输入流，文件描述符，文件路径都可以构造对象
+    - decodeRegion(rect，option)：生成rect区域的bitmap。其中rect为加载区域，option为BitmapFactory.Options
+- 质量压缩
+    - bitmap.compress()来压缩一张图片的质量，该方法指定(压缩格式,压缩百分比,对应输出流)
+    - 因为压缩质量不改变图片宽高信息，所以加载到内存中所需像素点不会减少，因此不能减少内存
+    - 使用JPEG压缩，或使用facebook的开源ndk进行压缩，效果会更好
+- 图片内存计算
+    - getByteCount()：该方法返回getHeight() * getRowBytes()
+    - getHeight()：图片的高度（单位为px）
+    - getRowBytes()：方法返回的是图片的像素宽度与色彩深度的乘积
+- 解码格式
+    - 具有不同色彩格式的位图使用不同数量的二进制位来描述一个像素点，因而图片质量和图片大小也就不同
+    - 各个解码方式
+        - ARGB_4444：像素深度2字节，ARGB各占4位，一共16位。A为透明度，RGB为色值
+        - ARGB_8888：像素深度4字节，ARGB各占8位。质量较高，占内存更大
+        - RGB_565：像素深度2字节，R占5位，G占6位，B占5位。只存储色值信息
+    - BitmapOptions.inPreferredConfig
+        - 通过该参数指定图片解码方式，但并不一定生效。具体情况受图片本身以及设备支持的情况来决定是否使用inPreferredConfig指定的格式
+        - 当该属性为null时：会根据图片源文件类型决定使用ARGB_8888或RGB_565。
+        - 当设置该属性当不满足时：会直接使用ARGB_8888。（比如使用RGB_565加载一个有透明度的图片，因为不支持Alpha，所以就会改为ARGB_8888）

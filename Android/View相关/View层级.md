@@ -1,0 +1,3 @@
+# View层级
+- 顶部状态栏是属于系统级别Window的内容，与我们应用的View不处于同一个Window中
+- 应用View层级：1、顶部为DecorView，其下包含一个LinearLayout。2、LinearLayout下包含两个FrameLayout。3、一个FrameLayout用于显示某些主题下的应用名称；另一个FrameLayout则是id为R.id.content的View，我们自定义的xml布局下的View就处于这个FrameLayout中，即调用setContentView()时就是向其添加自定义xml布局的View。

@@ -1,0 +1,17 @@
+# Socket
+- TCP
+    - 服务端
+        - 使用ServerSocket server = new ServerSocket(端口号)来创建服务度
+        - 使用server.accept()来接收一个Socket。该方法会挂起线程等待Socket返回
+        - 使用获取的Socket来获取输入流，从中获取数据；使用Socket获取输出流，来写入数据
+        - 根据业务即时关闭输入输出流和Socket，ServerSocket
+    - 客户端
+        - 使用Socket s = new Socket(ip，端口号)创建，创建过程就会和服务端连接，端口号需要于接收的服务端一致，如http协议使用80端口号
+        - 获取输出流向服务端输出数据，获取输入流来获得服务端写入的数据
+        - 根据业务即使关闭输入输出流和Socket
+- UDP
+    - UDP服务端和客户端使用的都是DatagramSocket。服务端创建时需要传入port(指明端口号，客户端才能向目标发送)，客户端可以不需要
+    - 使用DatagramSocket来开启UDP连接，使用receive(packet)来接收一个DatagramPacket数据包，使用send(packet)来发送一个DatagramPacket数据包
+    - DatagramPacket：
+        - 发送时使用构造函数DatagramPacket(data, data.length, address, port)，分别为(byte数组，数组内容长度，目标ip，目标端口号)
+        - 接收时使用构造函数DatagramPacket(data, data.length)，分别为(byte数组，数组长度)。来限定自己接收的大小

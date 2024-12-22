@@ -1,0 +1,33 @@
+# RecyclerView
+- 预取
+    - 依赖于GapWorker这个类实现，在显示第x个item时，会先将x+1的item绑定（bind）并存入mCacheViews中mGapWorker.postFromTraversal()该方法会在onTouchEvent的MOVE事件和ViewFlinger(用于惯性滑动)的run()方法中被调用。开启预取后 mCacheView的容量会提升对应的mLayout.mPrefetchMaxCountObserved数（该值每次滑动的时候都会计算，由上述方法postFromTraversal()调用导致）
+    - 预取跟平常取ViewHolder一样，会调用Recycler.tryGetViewHolderForPositionByDeadline()函数获取ViewHolder并绑定，不同的是，预取传入的deadLine是下一帧绘制的开始时间，当开始创建/开始绑定ViewHolder的时间+创建/绑定ViewHolder的平均事件(旧平均时间*0.75 + 新创建时间*0.25)超过deadLine时就会直接返回null/绑定失败，预取失败时会ViewHolder会加入RecyclerPool，否则加入mCacheView
+- 缓存
+    - 缓存由Recycler.recycleViewHolderInternal()实现。1、先尝试通过mCacheView缓存，最早加入mCacheView的ViewHolder会被移到RecyclerPool。2、再通过mRecyclerPool进行缓存。（通常只会用到二四级缓存。而一级缓存在暂时回收屏幕可见ViewHolder时用到，三级缓存由开发者自定义添加）
+    - 获取缓存由Recycler.tryGetViewHolderForPositionByDeadline()实现，会依次通过4个缓存获取ViewHolder，没有时会createViewHolder，最后调用tryBindViewHolderByDeadline()。deadline在预取时是下一帧的绘制开始事件，非预取时为Lone.MAX_VALUE确保获取成功。
+        - deadLine判断时机：1、在createViewHolder()之前会判断一次是否超时。2、在tryBindViewHolderByDeadLine()中一开始会判断是否超时
+        - 具体流程：1、先通过四级缓存获取ViewHolder。2、如果没获取到ViewHolder则进行createViewHolder()步骤：先获取start，并加上平均创建时间，如果大于deadlineNs则返回null，不大于则执行createViewHolder()。创建后获取end，计算平均事件(end-start)*0.25 + 平均 * 0.75。3、如果需要进行绑定走tryBindViewHolderByDeadLine()：先获取start计算是否超时，超时返回false。然后开始绑定。绑定后计算平均事件，返回true。
+    - 一级缓存mAttachedScrap，屏幕内ViewHolder缓存，用于重新布局屏幕中的ViewHolder/动画时使用，可以避免bind，复用时根据pos判断，容量不限制，用于存储屏幕可见的ViewHolder
+    - 二级缓存mCacheView，用于存储刚刚离开屏幕的ViewHolder以及预取的ViewHolder，可以避免bind，复用时根据pos判断，默认容量2，容量可修改。
+    - 三级缓存mViewCacheExtension，用于提供自定义缓存操作
+    - 四级缓存mRecyclerPool，每个type都会对应一个默认大小为5的缓冲池，需要重新bind，容量可修改
+- 局部刷新
+    - notifyItemChange()/notifyItemRangeChange()：局部刷新某一范围
+        - notifyDataSetChange()刷新所有的Item项。
+        - notifyItemChange(pos)内部调用了notifyItemRangeChange(pos, 1)
+        - 该方法和下面含有payload的方法每次调用都会包装成一个操作记录在AdapterHelper.pendingUpdate()中，该List.size()为1时才会触发requestLayout()。大于1或小于1都不会，这样避免了频繁requestLayout()
+    - notifyItemChange(pos，payload)：如果要刷新item的某一个目标
+        - 该方法不会刷新整个item项，同时短时间内多次调用会把payload合并。
+        - 调用notifyItemChange(pos，payload)，不会替换原有的ViewHolder，因此不会有执行动画的闪烁。而调用notifyItemChange(pos)，会把那一项item对应的ViewHolder替换成新的ViewHolder。
+        - 重写Adapter.onBindViewHolder(Holder,pos ,List<Payloads>)，取List最后一个Payload即多次刷新的最后一个结果。如果该参数为空，则为全更新。这个方法默认实现为调用onBindViewHolder(Holder,pos)所以重写了之后就不会再调用这个方法了。
+- 优化
+    -  [https://www.jianshu.com/p/1d2213f303fc]("https://www.jianshu.com/p/1d2213f303fc")
+    - 共用缓冲池
+    - onBind中避免创建对象
+    - 高度确定的情况下setHasFixedSize(true)避免重复测量
+    - 部分场景使用swapAdapter替代setAdapter可以缓存一部分ViewHolder
+    - layoutManager有提供onSaveInstanceState()和onRestoreInstanceState()，如果要保存状态可以主动调用
+    - getAdapterPosition()相比于getLayoutPosition()获取位置更加即时
+    - DiffUtil
+- 其他
+    - itemView会通过layoutParams存着其对应的ViewHolder

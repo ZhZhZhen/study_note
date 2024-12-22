@@ -1,0 +1,12 @@
+# ActivityThread在启动中的工作
+- main()中
+    - 1、会创建MainLooper。
+    - 2、创建ActivityThread，并调用activityThread.attach()，最终调用到AMS.attachApplication()。
+    - 3、调用MainLooper.looper()循环占用主线程来处理消息。
+- AMS.attachApplication()中（当要启动不同进程的组件时都和这个方法有关）
+    - 1、处理好记录并绑定ApplicationThreadProxy
+    - 2、调用ApplictionThread.bindApplication()去通知客户端创建LoadedApk/Instrumentation/Application；创建ContentProvider并回调发布；回调Application.onCreate()。
+    - 3、调用ActivityTaskManagerService.attachApplication()去启动待启动的Activity，这一步也是最终调用到realStartActivity()。
+    - 4、通过ActiveServices启动待启动的Service。
+    - 5、启动进程中待启动的BroadcastReceiver来接收广播
+    - 6、将当前进程的如果没有创建Activity/Service/BroadcastReceiver则会被降低进程优先级

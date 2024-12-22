@@ -1,0 +1,9 @@
+# LiveData
+- 简介：内部维护一个Data用于事件分发，一个version用于比较观察者的版本号判断是否需要分发，一个SafeIteratorMap用于存储观察者
+- LifecycleBoundObserver：通过observe()进行注册Observer时，会被包装成该类，并通过LifecycleOwner在进行一次生命周期注册
+    - onStateChange()：生命周期到来时回调该方法。1、回调是如果LifecyeleOwner.State为DESTROYED时，会对liveData和lifecycleOnwer进行解注册。2、调用activeStateChanged()，维护活跃状态，大于STARTED即为活跃。
+- AlwaysObserver：observeForever()注册时包装成该类，该方法不需要传入LifecycleOwner，所以解注册需要手动进行。调用该方法就会调用activiteStateChange(true)激活自己
+- ObserverWrapper：前两个Observer的父类
+    - activeStateChanged()：维护观察者的活跃状态，并根据活跃状态修改liveData的活跃观察者数量。1、如果数量从0->1回调onActive，从1->0回调onInactive。2、观察者如果由不活跃转为活跃会调用dispatchValue进行一次分发
+- setValue()：增加livedata版本，设置当前Data。调用dispatchValue()进行分发。dispatchValue()内部维护双循环，外循环判断分发是否失效，内循环用于分发Map中的Observer，分发时判断observer的version，小于livadata版本的会调整其version然后调用onChange()方法。
+- postValue()：1、非主线程使用，通过pendingData去暂存Value，然后发送操作去运行在主线程，设置pendingData时会判断是否会NOT_SET，是的话才会发送任务给主线程。2、主线程任务被执行时，pendingData设置为NOT_SET，然后把刚刚值用于调用setValue()。

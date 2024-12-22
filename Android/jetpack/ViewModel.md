@@ -1,0 +1,12 @@
+# ViewModel
+- 使用时通过ViewModelProvider来创建ViewModel，VMP构造函数最终需要ViewModelStore（由ComponentActivity和Fragment实现ViewModelStoreOwner）和构建工厂(区别在于是否调用含有Application的构造函数)。
+    - ComponentActivity：其ViewModelStore在第一次由自己创建
+    - Fragment：其ViewModelStore存放在管理他的FragmentManagerImpl中。FragmentManagerImpl.attachController()方法会去获取自己的FragmentManagerViewModel，如果有parentFragment，就会向parent.FragmentImpl取ViewModel，如果没有则向mHostCallback（Activity的内部类用于回调Activity方法，也实现了ViewModelStoreOwner接口，实际只是调用Activity.getViewModelStore）取ViewModel。
+    - FragmentManagerViewModel：成员变量中有2个Map，一个存自己管理的Fragment对应的ViewModelStore，一个存自己管理的Fragment对应的FragmentManager须要的FragmentManagerViewModel
+- ViewModelProvider.get()：创建时会持有ViewModelStore，先从成员ViewModelStore取，取不到则使用工厂构建，并添加至ViewModelStore(HashMap实现)
+- ViewModelStore.clear()：该方法会循环自己的ViewModel并调用ViewModel.clear()->ViewModel.onCleared()，然后把Map清空。
+    - Activity：由ComponentActivity在构造函数中通过lifecycle注册，在ON_DESTROY时会判断是否有配置改变isChangingConfigurations()，没有改变会调用ViewModelStore.clear()
+    - Fragment：在提交remove事务后，FragmentManagerImpl.moveToState在调用performDestroy()判断是否要清除(f.removing且不在回退栈 || (父页为Activity，判断isChangeConfiguration是否为false||父页为Fragment，判断FMViewModel是否标记isCleared是否为true))，不保留会调用mFragmentMangerViewModel.clearNonConfigState()。该方法会获取从FMViewModel中获取该Fragment的VMStore，调用clear()并移除；然后获取该Fragment.FragmentManager的FMViewModel标记isCleared为true并移除。
+- 配置改变导致Activity重构如何保存和恢复数据：
+    - 恢复：1、在调用ComponentActivity.getViewModelStore()时，会通过getLastNonConfigurationInstance()方法获取一个用于存储Store的对象LastNonConfigurationInstances。该对象有存储就会返回，没存储会new一个Store。 2、Activity.LastNonConfigurationInstances会在handleLaunchActivity()->activity.attach()时传入。
+    - 保存：1、performDestroyActivity()时，会调用activity.retainNonConfigurationInstances()，继而调用activity.onRetainNonConfigurationInstance()，该方法被ComponentActivity重写。 2、该方法返回了一个包含ViewModelStore的Object。所以最终是存储在ActivityThread的ActivityRecordClient.lastNonConfigurationInstances变量中的。（如果配置未改变，ViewModelStore会被clear，这时候返回的是一个空的ViewModelStore。）

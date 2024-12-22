@@ -1,0 +1,32 @@
+# 字符串String
+- 字符串常量池
+    - 用于避免多次字符串创建，当以双引号""创建字符串时，会在字符串常量池中进行存储
+    - 上述情况中遇到“aaa” + “bbb”，因为编译优化实际是只存储“aaabbb”至常量池，而不是"aaa","bbb","aaabbb"
+- String.intern()  若该String指向堆且常量池中无，则建立常量池引用至该字符串，并返回地址；否则直接返回常量池中地址
+    - Java6和之前由于常量池处于永久代，而不是堆，所以当永久代中不含该字符串，则会把堆中的复制到永久代中，此时永久代和堆中的不是同一个对象；而Java7开始，由于常量池在堆中，当常量池不存在时，即返回堆中的引用，所以此时是同一个对象。
+- 编译阶段优化
+    - 1、优化"" + ""情况
+        - String a = "aaa" + "bbb";
+        - 该代码只在常量池中增加"aaabbb"，因为编译阶段优化为String a = "aaabbb";
+        - 只针对“” +“”情况，因为引用的方式无法在编译时知道具体值
+    - 2、优化 引用 + 引用
+        - String a = "a";
+        - String b = a + "b";
+        - 上面会被优化为
+        - String a = "a";
+        - String b = new StringBuilder(a).append("b").toString();
+    - 循环中使用
+        - 尽量在循环体中用 StringBuilder.append，而不是String的+拼接，因为如果使用+拼接每次都相对于new StringBuilder()
+    - 综合情况
+        - 先整合连续"" + "" +""情况，后使用StringBuilder
+        - 如"a" + "b" + "c" + d + "e" + "f";
+        - 首先会被优化为 "abc" + d + "ef";
+        - 然后优化为new StringBuilder ("abc").append(d).append("ef").toString();
+- 发现“123”初始状态下就已经存在于字符串常量池中，“124”不在
+    - String s3 = new String( "1" ) + new String( "24" ) ;
+    - String s5 = s3.intern() ; String s4 = "124" ;
+    - Log. e ( "zzz" , (s3 == s4) + "" ) ;
+    - 答案为true，如果改成123，答案为false，类似的还有”java“，该字符串内部调用时已经产生于常量池中
+- StringBuilder和StringBuffer
+    - StringBuilder是线程不安全的，所以效率更高
+    - StringBuffer的很多方法都被synchronized给修饰了，所以线程安全

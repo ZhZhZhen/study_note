@@ -1,0 +1,17 @@
+# Retrofit
+- 原理：
+    - 使用动态代理生成对应的代理类。代理方法InvocationHandler.invoke()中：
+    - 1、对来自Object的方法和默认方法之外的method进行了解析，生成对应的ServiceMethod。
+    - 2、生成的ServiceMethod会先从Map缓存获取；未获取到则会通过对method的注解/方法参数/方法参数注解/返回值等进行反射分析，生成对应的ServiceMethod（并进行缓存）。
+    - 3、之后生成OKHttpCall并传入ServiceMethod和调用方法的参数args。
+    - 4、将生成的OkKHttpCall通过CallAdapter.adapt转化成对应的返回值并返回
+- OkHttpCall： 由动态代理生成方法所返回的结果。使用代理模式对 进行了构造和请求方法的调用 [OkHttp.Call]("http://OkHttp.Call")
+    - OKHttpCall.execute()/enqueue()：这些方法首先会首先通过createRawCall()方法生成 。然后代理调用 的同名方法，并传入回调，回调成功时，会调用parseResponse()来将Response通过Converter转化成对应的Model [OkHttp.Call]("http://OkHttp.Call") [OkHttp.Call]("http://OkHttp.Call")
+    - createRawCall()：1、调用serviceMethod.toRequest(args)->使用多个ParameterHandler.apply()（该类生成自ServiceMethod.Buidler中，由反射解析method而得）来对RequestBuidler进行填充，最后生成Request。2、使用Request转化成对应的 (通过OkHttpClient) [OkHttp.Call]("http://OkHttp.Call")
+    - parseResponse()：1、取出Response的ResponseBody然后调用serviceMethod.toResponse()，toResponse()会使用Converter.convert()将ResponseBody转化成对应的Model返回
+- ServiceMethod的产生：1、在动态代理的invocationHandler.invoke()调用的时候，会创建serviceMethod（首次创建后会通过缓存获取）。2、创建的时候使用Builder模式，在Builder中会对method的注解/方法参数/方法参数注解/返回值等进行反射分析，然后记录在生成的serviceMethod中，其中包含了请求的key，contentType等等。
+    - 返回值的解析：返回值的解析发送在构建callAdapter的过程中1、使用ParameterizedType.getActualTypeArguments()获取泛型类型，该Type表示如Cat<T>这样的类型。2、如果泛型为wildcardType，使用wildcardType.getUpperBounds()获取泛型上边界，该Type表示? extend T这样的通配符泛型
+    - CallAdapter：Retrofir含有一个默认的CallAdapterFactory，即 DefaultCallAdapterFactory，用于生成Call<T>的返回类型。
+    - Converter：Converter无默认的工厂。每一个ConverterFactory的逻辑都是通过获取CallAdapter中得到的Type，来创建对应的Converter
+- CallAdapter：用于将OkHttpCall转化成别的返回结果。以RxJava的CallAdapter为例子。就是生成一个Observable持有OkHttpCall。该Observable.subcribe()调用了OkHttpCall.enqueue()并在回调的时候，调用onNext()/onError
+- 动态代理：​ ​ [动态代理]("https://mubu.com/app/edit/home/7-9Cgd_SLOA")

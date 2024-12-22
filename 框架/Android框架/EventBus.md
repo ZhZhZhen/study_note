@@ -1,0 +1,31 @@
+# EventBus
+- 使用
+    - 使用@Subscribe注解，在对应需要回调的方法上进行标注。该注解可以表明该方法的调用线程(默认POSTIING，与post()在同一个线程)，是否粘性消息(默认false)，调用优先级(默认0)
+    - 注册/解注册： 被回调的方法所在的类需要通过register()/unregister进行注册/解注册
+    - 发送消息：使用post()进行消息发送。消息会根据post()方法的参数 和 注册的方法的参数进行匹配，匹配成功就会调用注册的方法
+    - 中断事件发送：当观察者和事件发送者处于同一线程时，高优先级的观察者可以使用cancelEventDeliver()去取消事件的后续发送，之所以要在同一个线程是因为消息的发送状态记录在PostThreadState中，而该类记录在ThreadLocal，不同线程修改不了该PostThreadState.cancel
+    - 粘性事件：需要调用postSticky()发送消息，并且观察者的粘性事件接收策略为true
+- 原理
+    - register()
+        - 1、首先使用SubscriberMethodFinder通过注解@Subcribe查找对应的方法，并进行正确性判断（比如方法必须为public，方法参数只能有一个），被找到的方法会记录在SubscriberMethod（该类包含了该该方法method，方法参数类型，粘性，优先级，线程模型）然后收集在List中
+        - 2、收集的SubscriberMethod会依次调用subscribe()，该方法中1、使用Subscription记录观察者实例和回调方法。2、收集信息至subscriptionsByEventType中，这是一个Map，Map<消息Type，List<Subscription>>。3、根据优先级排序把Subscription加到该List中，即上述被收集的List。3、收集信息至typesBySubscriber中，Map<观察者实例，List<消息Type>>，该Map主要用于解注册时查找。4、查找stickyEvents集合，立刻调用postToSubscription()回调匹配的粘性事件
+    - unregister()
+        - 查找register()时收集的typesBySubscriber，找到该实例下所有的type，然后查找subscriptionsByEventType，将该type所对应List中的含有该实例的Subscription移除。
+    - post()
+        - 使用PostingThreadState记录当前的post情况，该类会被存储在ThreadLocal中。该类记录了消息发送是否在进行中，是否取消消息。
+        - 1、首先将消息加入PostingThreadState的队列中
+        - 2、循环队列获取消息Type，调用postSingleEventForEventType()
+        - 3、postSingleEventForEventType()方法中：查找subscriptionsByEventType，将得到的List<Subscription>循环，调用postToSubscription()去回调方法(因为register时会按优先级插入List，所以先调用的就是优先级高的)。该方法中的循环每进行一次，都会判断当前PostingThreadState.cancel是否true，如果true则会跳出循环
+    - postSticky()
+        - 1、先将参数存储在stickyEvents中，Map<消息Type，消息实例值>。该map在register()时会用于查找粘性观察者的事件
+        - 2、调用post()
+    - cancelEventDelivery()：获取PostingThreadState，把cancel置为true。该操作会导致post()调用链下的一个方法跳出循环
+    - postToSubscription()
+        - 该方法根据Subscrption所记录的threadMode以及当前线程决定如何调用method.invoke()。
+        - BACKGROUND和ASYNC的区别：BACKGROUND会加入到队列中，然后在循环取队列调用invoke，直至队列为空。ASYNC加入到队列，但是不循环取，只取一次。
+        - 线程模型运行方式
+            - POSTING：运行在post()调用的线程中
+            - MAIN：运行在主线程，如果post()在主线程调用，则直接invoke()
+            - MAIN_ORDER：运行在主线程，但是一定会先加入到Looper.messageQueue中
+            - BACKGROUND：运行在线程池的一个线程中（使用队列实现）,如果post()在非主线程调用，则直接invoke()
+            - ASYNC：运行在线程池的多个线程中，且一定会加入到线程池中运行
