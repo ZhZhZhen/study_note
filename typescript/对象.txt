@@ -1,0 +1,46 @@
+1、可选属性
+使用type/interface申明对象类型时，可以标记属性为可选，创建的时候可以不填充这些属性
+
+2、readonly属性
+申明类型时
+在属性名前使用readonly修饰，则属性只读，不能修改。(改变不了运行时的行为，只做编译时检查)
+readonly修饰的对象属性，其内部值依然是可以改变的。
+如果有两个类型结构一致，其中一个类型的属性被readonly修饰。则可以通过另一个类型别名来对属性进行修改
+
+3、索引签名
+索引名字的类型可以取number/string/symbol/模板字符串/以及他们的联合类型
+如：
+interface StringArray {
+  [index: number]: string;
+}
+这样创建的对象，可以直接使用索引进行赋值，比如stringArray[5] = 1; 
+注意：
+number索引在使用的时候，会转为string，需要注意。
+使用了string索引之后，申明的其他属性必须和该string索引有相同的类型(因为无法分辨来自string索引还是来自该属性，所以他们的类型必须一致)
+
+4、扩展对象属性和交叉类型
+使用extends来扩展对象属性
+如：interface ColorfulCircle extends Colorful, Circle {}
+使用&来交叉两个对象的属性
+如：type ColorfulCircle = Colorful & Circle;
+注意：
+extends和&对interface和type都是适用的。
+发生属性名冲突时，extends会编译错误，而&会将类型变为never(如x: string和x: number因为交叉冲突，则表现为x既是string又是number，所以最终变成x: never)
+
+5、通用对象类型
+将泛型用于type和interface的申明，如
+interface Box<Type> {
+  contents: Type;
+}
+type OrNull<Type> = Type | null;
+
+6、只读数组
+被声明为只读数组的变量，其内容不能被修改
+如：function doStuff(values: readonly string[]) {}
+无法创建只读数组，只能将一个数组赋值给只读修饰的变量
+可以把一个普通数组赋值给只读数组类型，但反过来不行
+
+7、元组
+特殊的数组，长度固定，每个位置的类型不一定一致
+如：type Tuple= [number, string];
+只读元组与只读数组的特性一致

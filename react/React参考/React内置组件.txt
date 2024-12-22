@@ -1,0 +1,15 @@
+1、<Fragment>
+使用：当需要单个元素的时候，可以使用<Fragment><Fragment/>包裹多个元素，<Fragment>不会对DOM产生影响。可以简写为<></>
+*说明：#1、<Fragment>可以使用key属性，使用key的时候不能使用简写<></>。#2、当<><Child/><>转化为[<Child/>] 或<><Child/></>转化为<Child>时，React不会重置Child的state。该规则只在一层深度的情况下生效，如果<><><Child/></></>转为<Child/>则会重置state
+
+2、<Profiler>
+使用：包裹组件树，以测量其渲染性能。<Profiler>可以通过id属性表示正在测量的UI部分；通过onRender属性设置回调函数，其在包裹的组件树中的任何组件提交更新时都会被调用。
+*说明：#1、生产环境下被禁用，因为会增加开销。#2、onRender参数包含id(Profiler标识字符串), phase(标识触发原因包含mount/update/nested-update), actualDuration(此次Profiler更新的渲染毫秒数), baseDuration(估算没有优化下渲染Profiler的毫秒数，为树中每个组件最近一次渲染时间的累加), startTime(React开始渲染此次更新的时间戳), commitTime(React提交此次更新的时间戳)。
+
+3、<Suspense>
+使用：在子组件完成加载前（如因为渲染被挂起）显示fallback属性指定的jsx
+*说明：#1、使用startTransition或useDeferredValue引起的非阻塞渲染不会使得Suspense展示fallback，而是展示上一次渲染的内容。如果想在使用非阻塞渲染时不展示上一次渲染的内容则可以使用不同的key属性标记组件。#2、如果React需要隐藏被再次挂起的可见内容，它会清理内容树中的layoutEffect，并在内容再次展示时重新触发layoutEffect。这确保了layoutEffect能测量DOM布局。#3、服务端渲染中，若Suspense的子组件渲染抛出错误，则会显示fallback；而客户端需要使用ErrorBoundary才能在子组件出错时展示ErrorBoundary中的fallback。这样可以防止一些组件在服务端中渲染（判断是否能访问window，无法访问则抛出错误）
+
+4、<StrictMode>
+使用：包裹根组件，帮助你在开发过程中尽早发现组件中的错误。
+*说明：严格模式的检查仅在开发环境下运行。严格模式下组件会重新渲染一次；组件会重新运行Effect一次；组件将检查是否使用了已弃用的API。

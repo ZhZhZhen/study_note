@@ -1,0 +1,20 @@
+将Typescript构建为更小的部分，以此来缩短构建时间，并强制实施逻辑分离
+需要搭配-build标志进行编译
+
+1、references
+在tsconfig中是一个顶级属性，为对象数组，对象的path属性用于指定要引入项目的路径。
+引用项目时，导入目标模块其实加载的是对应的声明文件；引用的项目如果生成outFile，则其声明文件在当前项目可见；build模式构建当前项目的时候，对应的项目也会自动构建。
+
+2、composite
+被引用的项目需要在编译选项中开启composite，且必须开启declaration生成声明文件。如果开启declarationMap，还可以从主项目直接对引用的项目进行修改和跳转
+
+3、-build
+搭配tsc命令使用，用于进行build模式构建。会查找所有引用的项目，并检查是否为最新版本，并以正确的顺序构建过时的项目
+该编译过程如果出现项目语法或类型出错则会跳过编译，就像是默认开启noEmitOnError一样
+编译后的被依赖项目会生成一个额外的tsconfig.tsbuildinfo文件用于缓存，里面记录编译了哪些文件和对应文件的hash。再次编译时，如果hash没变，则跳过编译
+
+4、如何改造
+为想要成为子项目的目录创建一个tsconfig文件，并在编译选项中开启composite和declaration。在主tsconfig文件中通过references引用他们
+并将输出目录outDir设置为主输出目录的子目录。或者将rootDir设置为所有项目文件夹的公共根目录
+*一个项目可以同时存在references和composite
+*经验：可以创建一个基础tsconfig文件配置公共标志，给其他tsconfig文件继承；可以创建一个tsconfig文件依赖所有想要被编译构建的文件。这样通过tsc -b 该文件，就可以构建所有的项目

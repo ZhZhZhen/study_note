@@ -1,0 +1,12 @@
+1、描述
+es6开始作为一个基本类型。
+通过调用Symbol()构造函数生成，不可变且唯一。
+可以作为对象的key
+
+2、unique symbol
+同字符串文本类型，数值文本类型一样，用于表示symbol的文本类型
+使用const，readonly static创建的symbol变量即为unique symbol
+
+3、特殊的Symbol符号
+一些预先创建的symbol会被用于特殊的功能
+比如含有Symbol.iterator作为key的对象是可迭代对象

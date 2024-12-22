@@ -1,0 +1,32 @@
+以下方法中比较标准的是23489，CORS/正向代理/反向代理用于跨域请求，而消息传输主要通过预设置的js函数来达到跨域调用
+1、JSONP跨域
+原理是利用js文件，图片，css文件的加载没有跨域限制，所以使用<script>标签的src属性来访问服务端请求。跨域的请求需要模拟js文件的请求，在响应体中返回对预定义的js函数的调用，并在参数中传递想要跨域传输的内容。
+因为<script>的src属性本质是做一次http请求去请求js文件，所以只能应用于get请求；同时URL携带参数无法受到https的加密保护，容易被劫持。
+
+2、CORS跨域资源共享
+用于跨域请求，这是最标准的用于处理跨域请求的方法。
+处理时分为简单请求和复杂请求，简单请求满足请求方式为GET,POST,HEAD，头信息不超出Accept,Accept-Language,Content-Language,Last-Event-ID,Content-type(限定text/plain,multipart/form-data,application/x-www-form-urlencoded)
+简单请求：浏览器在发出跨域请求的时候，会自动在请求头加入Origin:网站域名用于告诉服务端域名来源。如果服务端可以判断Origin是否在接收范围，不在则返回一个正常HTTP回应，这样浏览器就会出现跨域错误。服务器可以选择在响应头中设置Access-Control-Allow-Origin:许可域名，来避免出现跨域问题。此外还有对应的头控制跨域可接收的请求方法，是否允许使用Cookie，可接收的请求头，可被对方获取的响应头(默认也只有6个响应头能获取，通过该字段增加能获得的响应头)。
+
+复杂请求：当请求方法为PUT或DELETE，或者需要增加其他请求头或增加获得的响应头，则需要增加一次HTTP查询，称为预检请求。使用OPTIONS请求方法来进行询问，请求头中增加Access-Control-Request-Method来查询可使用方法，Access-Control-Request-Headers来重新可使用的请求头。发出预检请求后，服务段除了Access-Control-Allow-Origin，还会返回用于表面可使用的请求方法/请求头的对应响应头，其中还有一个Access-Control-Max-Age用于表面该次预检的有效期(秒)。然后在有效期内，客户端即可进行使用对应方法，对应请求体的请求。
+
+3、反向代理
+服务端设置一个代理服务器，其域名和网站域名相同。代理服务器接收网页请求，并进行转发；由于代理服务器转发请求不受到浏览器同源策略影响，所以可以通过此方式达到跨域访问。
+
+4、正向代理
+一般用于开发。客户端设置一个代理服务器帮助做请求转发，原理和反向代理类似。
+
+5、document.domain+iframe跨域
+适用于主域相同，子域不同的情况。两个页面都通过js设置document.domain为基础主域，就实现了同域，这样就可以互相访问js对象
+
+6、location.hash + iframe跨域
+不同域之前设置window.onhashchange监听，通过iframe.src来进行传值（hash即网址中#后面的部分，通过修改网址来通知对方）
+
+7、window.name + iframe跨域
+window.name在不同页面加载后依然存在，并且可以填入2mb长度。做法即在iframe中加载跨域页面，跨域页面修改window.name，之后再次在iframe中加载同域页面，由于同域，则父页面可以直接访问子页面的name，从而拿到跨域页面所修改的name值
+
+8、postMessage
+window.postMessage不受同源策略影响，通过该方法传递消息，另一方通过设置监听即可拿到消息。
+
+9、WebSocket
+使用WebSocket进行消息传输，本质上也属于CORS，因为建立连接阶段采用http，所以需通过CORS认证

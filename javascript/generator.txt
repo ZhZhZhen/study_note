@@ -1,0 +1,14 @@
+使用function*关键字声明的函数，函数调用的时候并不会执行代码，而是返回一个生成器对象Generator，该对象符合可迭代协议和迭代器协议。
+通过调用生成器对象的next()来执行代码，而函数体中使用yield来划分每次调用next()时要执行的代码。
+
+1、next()
+next()调用时会返回一个对象，包含done和value属性，value为yield右边表达式的返回值或return的返回值，done代表当前代码是否执行完毕。
+
+next()可选择传递参数，该参数会作为上一个yield表达式的结果。
+如let variable = yield expression，则variable的值和expression无关，等于next()所传参数
+
+2、return()
+相当于在函数体当前位置插入了return语句，让生成器函数提前返回，该方法返回的对象done为true，value为所传参数
+
+3、throw()
+相当于在函数体当前位置插入了throw exception

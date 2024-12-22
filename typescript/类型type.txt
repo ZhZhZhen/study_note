@@ -1,0 +1,36 @@
+1、基本类型：
+string(1个字符2字节，使用Unicode编码，所以英文和中文字符都是占用2字节)
+number(8字节，采用双精度浮点数表表示，即1位符号位+11位指数位+52位小数位)
+bigint(支持任意长度整型，使用"n"来表示如const a = 100n;)
+boolean(4字节)
+null(typeof时返回的是object，原因是typeof会将二进制表示前三位为0的变量认为是object，而null的二进制表示每位都是0)
+undefined
+symbol(用于创建全局唯一引用)
+
+2、任意类型：
+any：可以表示任意类型，可以访问其任何属性
+
+3、联合类型：
+通过使用|来申明类型，如number | string，则可传递number或string
+
+4、文字类型：
+直接将某个变量定义为字符串：如const a = 'test';等效于const a:'test' = 'test';该a是一个'test'的文字类型
+一般配合联合类型来限定某个类型的具体值，如 type position = 'left' | 'right' | 'top' | 'bottom' | 'center'
+可以是数字,字符串,boolean，可以和非文字类型联合使用
+
+5、定义类型别名：
+通过type关键字来定义类型别名：如type ID = number | string
+或使用Interface关键字，type和Interface使用上大体相同，略有差别
+简单处理：默认使用Interface，直到需要才使用type
+
+6、类型断言：
+使用as或<>关键字推断类型为一个更具体或更不具体的类型，不能推断为毫无相关的类型
+必要时可以使用两个断言满足一些特殊功能，如：const a = (expr as any) as T;
+
+7、其他：
+其他类型：函数类型function，对象类型object
+null和数组其实是对象类型，typeof返回的是'object'
+在条件判断中：0, NaN, "", 0n, null, nudefined被判断为false（也可以通过Boolean(val)和!!val来转化为boolean）
+在宽泛比较中(==)：null==undefined返回true，在判空时val != null相当于判断val! == null && val  !== undefined（val != undefined也有相同的效果）
+in关键字，用于判断某个对象是否具有该属性，如'swim' in testObj
+is关键字，用于返回boolean的方法返回值位置，如function isString(s: unknown): s is string{}，is关键字可以帮助调用isString()的true分支中推断类型(true分支中会帮你将unknown推断为string类型)

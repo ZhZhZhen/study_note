@@ -1,0 +1,54 @@
+1、组合式函数：利用组合式API来封装和复用有状态逻辑的函数
+
+约定和实践
+#1、组合式函数约定使用驼峰命名法，以use开头。
+#2、输入参数使用toValue(val)来获取值，当参数是一个ref/getter时，会返回它的规范化值；否则会直接返回参数。
+#3、不要直接返回响应式对象，而是创建一个包含多个ref的对象。这样做在外部解构时仍可以获得ref从而不丢失响应性。
+#4、应用如果用到了服务端渲染，确保在组件挂载后才调用的生命周期钩子中执行DOM相关副作用，这些钩子只会在浏览器中被调用。
+#5、确保在onUnmounted()时清理副作用。
+#6、组合式函数只能在<script setup>中调用，或是setup()钩子中同步调用。这是因为Vue可以在这些上下文中确定当前的组件实例，组合式API（如生命周期钩子/计算属性/侦听器）依赖于当前的组件实例来进行绑定，这样组件卸载时可以自动停止监听，避免内存泄漏。
+
+
+2、自定义指令：重用涉及普通元素的底层DOM访问逻辑
+使用：
+#1、在<script setup>中以v开头的驼峰命名所声明的一个对象能够被当作自定义指令，该对象的成员由一些与生命周期钩子类似的函数组成。如：
+const vFocus = {//则在模板中可以通过v-focus使用该自定义指令
+  mounted: (el) => el.focus()
+}
+#2、没有使用<script setup>时需要通过directives选项进行注册，如：
+directives: {
+    // 在模板中启用 v-focus
+    focus: {}
+}
+#3、全局注册如：app.directive('focus', {})
+
+指令钩子：
+created(el, binding, vnode) 在绑定元素的attribute或事件监听器前调用
+beforeMount(el, binding, vnode) 在元素被插入到DOM前调用
+mounted(el, binding, vnode) 绑定元素的父组件及他所有子节点都挂载完成后调用
+beforeUpdate(el, binding, vnode, prevVnode) 绑定元素的父组件更新前调用
+updated(el, binding, vnode, preVnode) 绑定元素的父组件及他所有子节点都更新后调用
+beforeUnmount(el, binding, vnode) 绑定元素的父组件卸载前调用
+unmounted(el, binding, vnode) 绑定元素的父组件卸载后调用
+参数
+el：指定绑定到的元素，可用于操作DOM（除el外，其他参数都是只读的；可以通过el的dataset实现钩子间共享信息）
+binding：一个对象包含，value传给指令的值（=后面的值）；oldValue之前的值；arg传给指令的参数（:后面的值）；modifiers包含修饰符的对象（.后面的值）；instance调用该指令的组件实例；dir指令的定义对象
+vnode：代表绑定元素的底层VNode
+prevVnode：代表之前的渲染中指令所绑定元素的VNode
+
+说明：
+#1、常见的自定义指令只会实现mounted和updated钩子，可以简写成只用一个函数来表达指令。如：app.directive('color', (el, binding) => {})
+#2、指令可以接收任何合法的JS表达式作为值
+#3、不推荐在自定义组件上使用自定义指令，因为这样会透传给根元素。当有多个根元素时，自定义指令会被忽略且没有类似$attrs的传递方式。
+
+
+3、插件：用于为Vue添加全局功能的工具代码
+app.use(plugin, options)：加载一个插件。plugin可以是一个包含install方法的对象，也可以直接是一个install函数。
+install(app, options)：app为应用实例；options为通过use传递的options。
+
+用法：
+#1、通过app.component/app.directive注册一到多个全局组件和全局自定义指令。
+#2、通过app.provide提供一个全局资源。
+#3、通过app.config.globalProperties添加一些全局实例属性或方法。（因为模板中的表达式只能访问有限的全局对象列表，得通过该方式增加可访问的全局属性或方法）
+
+

@@ -1,0 +1,47 @@
+1、变量声明方式
+let表示变量
+const表示常量，一旦确定就不能更改(但引用的内容是可以改的，只是地址不能变了)
+var大部分情况不推荐使用，如果有特殊需求可以使用(比如需要使变量泄露到全局范围，或者使变量泄露到整个方法范围)
+
+2、var变量的问题
+解决var变量的问题就是使用let来代替var
+#1、范围泄露
+在方法内声明var变量，其作用范围是整个方法
+在顶层声明，作用范围是整个全局域(对于浏览器就是变成window的属性，对于node就是变成global的属性)
+这意味着var变量可以先使用后声明，并且不受if等代码块的限制
+
+#2、重复声明
+重复声明同名的var变量，其实指向的是同一个变量
+
+3、解构
+#1、数组解构
+let [first, second] = [1, 2];
+let [first, ...rest] = [1, 2, 3, 4]; //rest为[2, 3, 4];
+let [first] = [1, 2, 3, 4]; //解构元素可以少于内容，但不能多于内容
+let [, second, , fourth] = [1, 2, 3, 4]; //只解构自己关心的位置
+function f([first, second]: [number, number]){}  //在方法参数位置解构
+
+#2、元组解构
+与数组解构语法一致
+
+#3、对象解构
+let o = {
+  a: "foo",
+  b: 12,
+  c: "bar",
+};
+let { a, ...passthrough } = o; //使用花括号解析，支持rest变量，其中passthrough为{b:12; c:"bar"}对象
+let { a: newName1, b: newName2 }: { a: string; b: number } = o; //为属性重新命名(与类型声明有点差异)
+function keepWholeObject({ a, b = 10 }: { a: string; b?: number }){} //支持默认值，支持函数参数声明
+
+4、传播
+与结构相反，传播可以将一个数组分散到一个数组中，将一个对象分散到对象中
+
+#1、传播数组
+const array1 = [1, 2];
+const array2 = [0, ...array1, 3];
+#2、传播对象
+const defaults = { food: "spicy", ambiance: "noisy" };
+const search = { food: "rich", ...defaults };
+传播对象时，当遇到命名冲突，则后面的值覆盖前面
+对于一个类的实例，只会传播其实例属性，而不会传播其实例方法

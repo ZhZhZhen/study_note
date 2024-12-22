@@ -1,0 +1,71 @@
+因为ts在编译时要根据导入的模块查找源文件，才能获取类型做后续的工作，因此在编辑阶段也需要模块解析策略
+对应于tsconfig的moduleResolution选项
+
+1、相对导入和非相对导入
+以/或./或 ../开头的模块路径成为相对导入，其余成为非相对导入
+对于自己的文件一般通过相对导入引入，对于第三方库一般通过非相对导入引入
+
+2、模块解析策略
+策略有两种，分别为classic和node(常用)，当module配置为commonjs时默认为node，否则默认为classic
+对于相对导入和非相对导入有不同的解析结果。相对导入只会查找目标路径，而非相对导入查找失败后会逐级向上查找直到根目录
+
+#classic
+相对导入
+如文件/root/src/folder/A.ts中导入 ./moduleB
+1、  /root/src/folder/moduleB.ts
+2、 /root/src/folder/moduleB.d.ts
+
+非相对导入
+如文件/root/src/folder/A.ts中导入moduleB
+1、  /root/src/folder/moduleB.ts
+2、 /root/src/folder/moduleB.d.ts
+之后就是逐级向上查找moduleB.ts和moduleB.d.ts
+3、  /root/src/moduleB.ts
+4、  /root/src/moduleB.d.ts
+5、 /root/moduleB.ts
+6、 /root/moduleB.d.ts
+7、 /moduleB.ts
+8、 /moduleB.d.ts
+
+#node
+node解析的特点是，在目标路径解析失败时，会去查找package.json的types配置的路径，如果再失败会去找目标路径的index文件。并且在非相对导入时，查找的是目标路径/node_modules下的文件
+相对导入
+如文件/root/src/moduleA.ts中导入./moduleB
+1、/root/src/moduleB.ts
+2、/root/src/moduleB.tsx
+3、/root/src/moduleB.d.ts
+4、/root/src/moduleB/package.json中的types所配置路径
+5、/root/src/moduleB/index.ts
+6、/root/src/moduleB/index.tsx
+7、/root/src/moduleB/index.d.ts
+
+非相对导入
+如文件/root/src/moduleA.ts中导入moduleB
+1、 /root/src/node_modules/moduleB.ts
+2、 /root/src/node_modules/moduleB.tsx
+3、 /root/src/node_modules/moduleB.d.ts
+4、 /root/src/node_modules/moduleB/package.json中的types所配置路径
+5、 /root/src/node_modules/@types/moduleB.d.ts
+6、 /root/src/node_modules/moduleB/index.ts
+7、 /root/src/node_modules/moduleB/index.tsx
+8、 /root/src/node_modules/moduleB/index.d.ts
+9~16 查找/root/node_modules/下的，按上述顺序的文件
+17~24 查找/node_modules下的，上述顺序的文件
+
+3、其他模块解析编译选项
+baseUrl：在解析非相对导入的时候产生作用。会基于tsconfig文件所在路径和baseUrl路径拼接后去查找目标模块（该路径的查找优先级高于node_modules，但不建议使用）
+
+paths：在解析非相对导入的时候产生作用，记录的是源路径到目标路径的映射。在查找源路径时，会映射为目标路径，再和tsconfig文件所在路径拼接查找目标模块（即tscconfig文件所在路径 + 映射路径）。支持*号通配符，并且一个目标路径可有多个映射路径。（搭配baseUrl使用时，查找路径会变为tscconfig文件所在路径 + baseUrl路径 + 映射路径）
+
+rootDirs：对相对和非相对导入都有用。用于合并根路径，该配置的数组中的路径，都将被当作根路径。查找目标模块时都会尝试这些路径。
+#也可以用于预申明当前不存在，但是临时生成的路径
+
+traceResolution：用于编译中模块解析步骤时输出日志
+
+noResolve：一般在命令行中使用，表明只编译命令行中所提供的文件
+
+exclude：一般编译器会编译tsconfig所在目录下的所有文件，使用exclude来排除不想编译的文件
+#在排除的文件中，如果被需要编译的文件给导入(比如模块引入或三斜杠指令引入)了，那么被导入的文件依然会被编译(防止功能缺失)
+include：指定要编译的目标目录，指定后默认行为失效(编译tsconfig所在目录)
+files：以指定的文件作为编译的起始文件，起始文件所导入的文件也会被编译
+

@@ -1,0 +1,79 @@
+1、特殊的函数定义
+(1)在定义type的时候，可以定义无名的函数，这个时候可以使用该type进行方法调用，相当于调用这个无名函数
+如：
+type DescribableFunction = {
+    (someArg: number): boolean;
+};
+
+(2)new关键字，在定义type的时候，使用new关键字来代表这个type的构造方法
+如：
+type SomeConstructor = {
+  new (s: string): Date
+};
+
+2、泛型
+在方法名后使用<>关键字申明，用于表明类型。
+可以使用extends进行约束，如<T extends { length: number }>，则泛型T所包含的类型必须拥有length属性
+
+3、可选参数
+在方法参数中后使用?关键字，代表该参数可以选；使用=赋值表示参数不填时默认为该值
+如：function f(x?: number){}
+       function f(x = 10)
+当调用方法时，传递比方法实际参数更多的参数，多余的参数会被忽略
+
+4、函数重载
+必须先申明函数签名，最后做函数实现(多个签名+1个最终实现)
+如：
+function makeDate(timestamp: number): Date;
+function makeDate(m: number, d: number, y: number): Date;
+function makeDate(mOrTimestamp: number, d?: number, y?: number): Date {
+  if (d !== undefined && y !== undefined) {
+    return new Date(y, mOrTimestamp, d);
+  } else {
+    return new Date(mOrTimestamp);
+  }
+}
+原则上优先使用联合类型，直到需要重载
+
+5、this调用
+(1)函数声明的方法参数中，可以使用this参数来表明this的类型，这样Typescript可以帮你检测函数调用时this的类型
+如：
+interface Obj {
+    name: string
+    getName(this: Obj): string
+}
+const obj: Obj = {
+    name: "test",
+    getName() {
+        return this.name
+    },
+}
+(2)在类中的方法
+原型方法：this取决于上下文，回调传递需要额外绑定this
+普通实例方法：this取决于上下文，回调传递需要额外绑定this
+箭头实例方法：this为当前实例，不需要额外绑定
+(3)通过call,apply调用
+this将成为call/apply的第一个参数，(非严格模式下传null/undefined则为window)。这俩方法区别在于call的方法参数从第二个参数开始传递，apply则是传递数组
+
+6、rest参数
+类似于java的变长参数，如：
+function multiply(n: number, ...m: number[]) {
+  return m.map((x) => n * x);
+}
+
+对于固定参数数量的函数也可以使用...传递一个不可变数组，如：
+const args = [8, 5] as const;//不可变数组
+const angle = Math.atan2(...args);//atan2是一个参数数量为2的函数
+
+7、返回void的函数
+当一个有返回值的函数，被赋值给类型为返回void的函数，则返回值会被忽略。如：
+type voidFunc = () => void;
+const f1: voidFunc = () => true;
+const v1 = f1();
+此时v1在编译器中显示void类型。
+
+但是在申明函数时，如果表明返回值为void，则不允许返回任何东西。如：
+function f2(): void {
+  //这样是不允许的，因为申明函数时明确返回void，即不返回任何东西
+  return true;
+}

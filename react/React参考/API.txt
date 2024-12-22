@@ -1,0 +1,37 @@
+1、createContext(defaultValue)
+	参数：当读取上下文组件未匹配上下文时，所使用的默认值，可空。
+	返回值：返回一个上下文。然后父组件使用SomeContext.Provider组件的value属性提供值，子组件使用useContext读取值（或使用SomeContext.Consumer组件读取）。这样父组件不需要通过逐级传递props，子组件就能获取到值。
+	*说明：#1、useContext在查找值时会从最近的包含Provider组件的祖先中查找，并且只会查找对应的Provider。#2、若context发生变化，React会自动重新渲染读取context的子组件（旧值和新值会通过Object.is比较）。
+
+2、forwardRef(render)
+	参数：render指组件的渲染函数，区别在于该render除了props参数，还包含一个ref参数。
+	返回值：返回一个可以在JSX中渲染的React组件，相比于普通组件，该组件可以接收ref属性。
+	*说明：#1、只有内置HTML组件可以传递ref属性，想传递ref给自定义组件必须通过forwardRef转化。#2、被转化的组件可以使用useImperativeHandle给ref赋值一个对象从而限制父组件拿到引用时可以调用的方法。
+
+3、lazy(load)
+	参数：load为一个返回Promise或thenable对象的函数。在尝试首次渲染返回的组件之前，React不会调用load，首次调用load后，React会等待解析，并将解析值的default属性（以默认导出）渲染为React组件。返回的Promise和Promise的解析值都会被缓存。
+	返回值：一个React组件，当其在加载代码时，会处于挂起状态，可以配合Suspense显示fallback。
+	*说明：#1、load一般会配合import()来动态导入一个模块，该模块的默认导出必须是组件。
+
+4、memo(Component, arePropsEqual?)
+	参数：Component为要进行记忆化的组件；arePropsEqual为自定义判断前后Props是否一致，默认是通过Object.is判断
+	返回值：返回一个记忆化的组件
+	#说明：#1、通常情况下，props没有改变，记忆化的组件就不会因为父组件重新渲染而重新渲染，但React仍有可能重新渲染它，记忆化是一种优化而非保证。#2、如果props中会传递函数/对象，则可以让传递的组件搭配useCallback/useMemo使用。#3、一个组件接收children作为自己的子组件，当该组件更新自己的状态触发渲染，其children不会因此而被渲染，这样可以代替memo。
+
+5、startTransition(scope)
+	参数：scope为一个调用一次或多次setState的函数，scope会被React立即同步调用，这期间的状态更新会被标记为transition。
+	*说明：#1、与useTransition的startTransition一致，详细参考useTransition。
+
+6、use(resource)：获取资源（Context或Promise）的结果
+	参数：可以是一个Context或一个Promise，当读取Context时与useContext行为一致（查找组件最近的Provider值，并在值变动时重新渲染）；当读取Promise时与Suspense和ErrorBoundary一起使用，若Promise处于pending，则显示最近Suspense祖先的fallbck，当Promise被拒绝，则显示最近ErrorBoundary祖先的fallback。
+	返回值：从资源读取的值。
+	*说明：#1、use不同于其他Hook，use可以在循环和分支中调用。#2、use会在数据获取后重新渲染组件，在服务端组件中应优先使用await Promise。#3、use(Promise)常用于，服务端组件创建Promise，再通过prop传递给一个客户端组件，客户端组件使用use读取该Promise。这样做的好处是服务端不再因为await Promise而阻塞渲染，而是在客户端进行阻塞渲染。#4、use不能在组件外和try-catch中调用，使用Promise.catch代替try-catch。
+
+*7、act：使用时 await act(async actFn)，用于UI测试时确保某些操作的完成
+	参数：编写UI测试时，渲染/用户事件（如点击）/数据获取等可以被视为与用户界面交互的单元。actFn包裹这些单元，能确保这些单元更新已被处理并应用于DOM，这样之后的代码就能确保这些单元更新已完成
+	*说明：#1、用于测试，使用act必须在测试环境中配置global.IS-REACT-ACT-ENVIRONMENT=true。这是为了确保仅在正确的环境中使用。
+
+*8、cache(fn)：用于服务端组件缓存函数的结果，该函数一般会在多个组件中调用。
+	参数：要进行结果缓存的函数。
+	返回值：与fn参数列表一致的函数。调用该函数时，会首次调用fn并缓存其结果，之后若参数相同则返回缓存的结果，而不会再次调用fn。缓存方式类似于Map。
+	*说明：#1、只能与服务器组件一起使用，cache需要在组件外调用保证使用的cacheFn是同一个函数，而cacheFn必须在组件内使用才能使用缓存，cacheFn在组件外部调用将不使用缓存（因为缓存是通过Context提供的）。#2、React将在每次服务器请求时使所有记忆化函数缓存失效。#3、cacheFn还会缓存错误，并在参数相同时再次抛出缓存的错误。

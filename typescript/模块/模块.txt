@@ -1,0 +1,54 @@
+1、es6模块定义
+任何包含顶级import,export的文件被视为模块
+没有任何顶级导入或导出或顶级await的文件被视为在全局范围内可用的脚本
+
+2、es6模块语法
+#导出
+导出可用于变量，类，方法，类型
+#1默认导出
+export default function helloWorld() {}
+#2命名导出
+export function helloWorld() {}
+#3不导出任何东西，把文件申明为模块
+export {}
+#4重导出（通常再一个模块中合并多个其他模块内容）
+export { ZipCodeValidator as NewZipCodeValidator } from "./ZipCodeValidator";
+
+#导入
+#1单纯导入模块(这些模块可能在顶层范围执行一些全局修改)
+import "./hello.js";
+import {} from "./hello.js";
+#2导入命名导出的内容，并使用as作别名
+import { pi as π } from "./maths.js";
+#3导出默认导出的内容，并为其赋名
+import customName from "./hello.js";
+#4导出整个模块到一个命名空间
+import * as math from "./maths.js";
+#5显式申明一个类型的导入
+当ts文件交给非tsc编译器构建时，可能无法判断导入的是否为类型，通过import type显式表明导入的是类型，可以在编译后删除类型相关的代码
+import type { Cat } from "./animal.js";
+
+#关于模块其他知识
+#1、需要注意的是如果导入模块的内容，但不进行使用，则模块不会进行加载运行。(比如导出类型做类型检查但并没有实际使用)
+需要与单纯导入模块区分，单纯导入模块依然会加载运行。
+#2、export =语法用于模拟cjs和amd模块解析器中的默认导出(功能与默认导出类似，但不一样，所以使用该语法兼容)，相应的导入必须使用import = require()语法进行引入。一般来说通过配置esModuleInterop为true来给cjs和amd模块的默认导出做特殊处理，以此来兼容esm模块语法比较方便(我个人认为使用该配置，而尽量不要使用import=require())
+#3、esm模块是在编译期决定的，因此如果想要实现运行期动态加载模块，可以使用commonjs。搭配#1的用法可以达到对动态加载的模块的内容进行类型检查的效果。
+#4、导出尽可能的简单。#一个模块只有一个内容时尽量使用默认导出。#避免多级嵌套，不要使用命名空间，因为命名空间的两个功能(避免命名冲突，整合相关的功能)模块天然支持，并且使用命名空间会导致多级嵌套。
+
+
+3、CommonJs语法
+导出(对module.exports进行赋值):
+module.exports = {
+  pi: 3.14,
+  squareTwo: 1.41,
+  phi: 1.61,
+  absolute,
+};
+
+导入(使用require):
+const { squareTwo } = require("maths");
+squareTwo;
+
+4、编译选项module
+通常代码中使用es模块语法进行编写，但可以通过配置文件的module选项来决定输出的最终文件将使用哪种模块语法
+不同的module配置输出的代码不同

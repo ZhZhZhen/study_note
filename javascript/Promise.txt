@@ -1,0 +1,22 @@
+为了解决多层嵌套回调，使用Promise后可以使用链式结构来处理结果
+使用new Promise(executor)创建一个Promise对象。
+executor为一个立即同步调用的函数，executor包含resolve和reject两个参数，使用resolve()来发送一个结果，使用reject()来发送一个错误结果
+
+1、Promise构成
+State：包含pending(初始状态)/fulfilled(操作成功)/rejected(操作失败)
+Result：存放resolve()/reject()发送的结果
+FulfillReactions：resolve被调用时，该回调会发送至微任务队列等待执行
+RejectReactions：reject被调用时，该回调会发送至微任务队列等待执行
+isHandle：表示Promise是否被处理
+
+2、Promise.then(fn,fn)
+可传递2个参数，第一个用于设置FulfillReactions，第二个用于设置RejectReaction。并返回一个新的Promise。
+
+3、Promise.catch(fn)
+对then()进行了封装，传递的参数用于设置RejectReaction
+
+4、Promise.all(promiseArray)
+传递一个包含Promise的数组，数组中的Promise会依次触发，并在所有Promise被resolve之后resolve，其Result是个用于存放Promise结果的数组，其顺序与Promise数组一致；或者因为第一个Promise被reject而立刻reject。
+
+5、async异步函数
+该函数直接调用时返回的是一个Promise对象，本质是一个自动执行next()的generator函数。每次调用await相当于获取Promise的result，并传递给下一个Promise。

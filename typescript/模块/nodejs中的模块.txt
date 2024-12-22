@@ -1,0 +1,21 @@
+node是一个js运行时，其中使用package.json来进行项目配置
+
+1、配置中模块相关字段
+type：用于标识用什么模块方式进行解析，默认为commonjs，可选module，commonjs
+
+types：旧版中，typescript编译时进行模块解析所需要的类型申明文件入口(不写该字段则根据main查找对应的dts文件)
+#在tscconfig中模块解析策略为node时才会用到package.json的types字段
+
+main：旧版用于标识cjs模块入口文件
+
+module：旧版用于标识esm模块的入口文件
+
+exports：其中可选import/require用于分别支持不同模块解析方式下的入口文件。import/require下也都支持types(ts编译时进行模块解析需要的入口，不写则根据default查找)，default(nodejs入口文件)
+
+2、node中额外的文件扩展名
+当为了编写与配置文件中type支持的模块解析方式不同的文件时
+.cjs：只支持commonjs模块的文件，对应ts中.cts / .d.cts
+.mjs：只支持esm模块的文件，对应ts中.mts / .d.mts
+
+
+

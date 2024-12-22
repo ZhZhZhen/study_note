@@ -1,0 +1,25 @@
+1、概念
+js引擎的主线程要处理来自其他线程的任务时，会采用事件循环机制，从任务队列中获取任务并执行。而一些耗时/延时操作可能会在完成时将任务发送至任务队列。
+w3c规定了几十种任务队列，不同的js引擎会采取不同的实现。但可以采用微任务队列和宏任务队列来简化概括，微任务会被优先处理。
+
+2、浏览器的事件循环处理
+先执行当前执行栈的同步任务。遇到异步任务时，会交由WebAPI，WebAPI会在适当时机将回调发送至任务队列。
+当执行栈为空时，循环获取并执行微任务队列直到该队列为空。该过程中如果微任务队列添加了新的任务也会执行。
+然后取宏任务队列中的第一个任务并执行。之后循环以上步骤。
+
+3、浏览器的任务源
+宏任务：setTimeout/setInterval/IO操作/渲染任务(解析布局绘制)/用户交互事件/script标签的代码(顶层的js代码)
+微任务：基于promise的then,catch,finally/queueMicrotask/mutationObserver/await下一行的代码(不包括await那行)
+
+*一些博客将requestAnimationFrame的任务归于宏任务队列。有些博客则说是在一个动画队列，用于在每一帧开始时触发
+*微任务在dom渲染之前触发，宏任务在dom渲染之后触发
+
+*4、node环境中的事件循环
+依次执行
+#1、微任务
+#2、timers：用于执行setTimeout/setInterval发送的任务
+#3、pending callbacks：执行延迟到下一个循环迭代的IO回调
+#4、idle，prepare：系统内部使用，用于队列移动
+#5、poll：检测新的IO事件；执行IO相关回调
+#6、check：执行setImmediate回调
+#7、close callbacks：执行close事件的回调，一些关闭的回调函数

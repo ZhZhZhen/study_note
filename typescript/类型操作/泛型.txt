@@ -1,0 +1,30 @@
+#函数申明
+参数前使用泛型如:function identity<Type>(arg: Type): Type{}
+使用如：identity<string>('test')  或自动推断 identity('test')
+
+#类型申明
+泛型函数类型: <Type>(arg: Type) => Type
+对象文字类型 : { <Type>(arg: Type): Type }
+接口:
+interface GenericIdentityFn<Type> {
+  (arg: Type): Type;
+}
+类:
+class GenericNumber<NumType> {
+  zeroValue: NumType;
+  add: (x: NumType, y: NumType) => NumType;
+}
+
+#泛型约束
+使用extends关键字约束泛型内容
+function loggingIdentity<Type extends {length: number}>(arg: Type): number {
+  return arg.length; //因为约束包含length，所以可以使用
+}
+
+搭配new关键字使用
+function create<Type>(c: { new (): Type }): Type {
+  return new c();
+}
+function createInstance<A extends Animal>(c: new () => A): A {
+  return new c();
+}

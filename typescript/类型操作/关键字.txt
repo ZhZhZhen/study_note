@@ -1,0 +1,52 @@
+1、keyof关键字
+用于接口，类
+获取其实例属性，实例方法的key的类型（除了索引签名的key，其他其实都是字符串文本类型），并返回其联合类型
+如 type Test1 = keyof {x:number; y:number},则Test1为 x | y，其中x,y作为key是字符串字面量类型
+如 type Test2 = keyof {[n:string] : unknown},则Test2为string | number，因为索引签名的key都是string类型，同时js中对象键都转为字符串，所以number也可以充当表示[n:string]的情况
+
+对于接口来说，会返回属性的key的联合类型
+对于类来说，会返回实例属性，实例方法的key的联合类型
+
+2、typeof关键字
+用于对象，可以返回对象的类型
+如:
+let s = {x:5, y:'test'};
+type sType = typeof s;
+则sType 为 {x:number; y:string;}类型
+
+与js中的typeof需要区分，js的是运行时起作用，并且只针对基本类型/function/object
+而ts的typeof是对编译时期起作用
+
+3、通过索引获取类型(索引类型)
+通过  类型[key类型]  来访问对应value的类型，通常key的类型是字符串文本类型
+#如:
+type Person = { age: number; name: string; alive: boolean };
+type Age = Person["age"];//这里的age不是字符串常量，而是字符串文字类型
+则Age为number
+
+#使用number关键字获取数组类型的成员类型，如:
+const MyArray = [
+    { name: "Alice", age: 15 },
+    { name: "Bob", age: 23 },
+    { name: "Eve", age: 38 },
+];
+type a = typeof MyArray[number];
+等价于
+type arrType = typeof MyArray;
+type a = arrType[number];
+则a为{name:string; age:number;}
+当数组成员的类型不一致时，返回的是各个成员类型的联合类型
+
+4、extends关键字(条件类型)
+#用于在创建类型时做条件判断，一般搭配泛型使用，用于申明类型的位置，如:
+type Flatten<T> = T extends any[] ? T[number] : T;
+
+#条件类型时可以配合infer关键字指代某个部分，如：
+type Flatten<Type> = Type extends Array<infer Item> ? Item : Type;  //这里用infer Item指代数组元素的类型
+
+#条件类型的泛型作用于联合类型时，默认情况是分别计算联合的每个子类型，最后再返回其联合，如：
+type ToArray<Type> = Type extends any ? Type[] : never;
+type StrArrOrNumArr = ToArray<string | number>; //这里的结果是string[]|number[]，而不是(string|number)[]
+通过添加[]来取消这种默认行为
+type ToArrayNonDist<Type> = [Type] extends [any] ? Type[] : never;
+type StrArrOrNumArr = ToArrayNonDist<string | number>; //结果为(string|number)[]

@@ -1,0 +1,22 @@
+1、typescript类型系统等级，逐级递增
+#1、仅仅基于js代码推理类型系统
+#2、在js代码上使用JSDoc
+#3、在js文件中使用//@ts-check
+#4、typescript代码
+#5、启用strict模式的typescript代码
+
+2、JSDoc
+使用JSDoc可以以注释的方式标注js代码，这样在ts代码中使用这个js文件的内容会有类型支持(即会提示类型错误)
+通过在js文件中使用//@ts-check注释，可以让JSDoc在js代码中也能有类型支持
+通过配置tsconfig文件或使用jsconfig文件，可以让js文件默认都支持ts-check
+#jsconfig即tsconfig的特殊形式，默认启用了一些针对js的配置
+
+3、忽略JSDoc
+在js文件使用//@ts-nocheck来忽略当前js文件的类型检查
+在代码行上使用//@ts-expect-errot 或 //@ts-ignore来忽略某行代码的类型检查
+
+4、从JSDoc生成声明文件
+#1、将Typescript添加到开发依赖中
+#2、创建tsconfig文件，并配置allowJs，declaration(生成声明文件)，emitDeclarationOnly(只生成声明文件)，declarationMap(声明映射文件，这样可以通过dts文件跳转到js文件)
+#3、运行typescript编译器
+#4、为package.json配置入口声明文件(如果你写的是库，那么可以这样做，别人在使用你的库时可以拥有类型支持)

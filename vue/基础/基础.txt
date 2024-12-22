@@ -1,0 +1,117 @@
+1、模板语法（那个像HTML的东西）
+模板会被编译为高度优化的JS代码
+模板中的HTML属性如果以v-开头的属性，被称为命令，表明这是由Vue提供的特殊attribute。指令的任务是在其表达式的值变化时响应式地更新DOM
+
+例如：<div v-bind:id="dynamicId" v-on:click.prevent="doSomething">{{someVal}}</div>
+在HTML文本内容中，使用{{someVal}}来绑定数据
+在HTML属性中使用v-bind:xxx来绑定数据，如v-bind:id="dynamicId"（可以简写为:id="dynamicId"）（如果属性名称与js变量名相同则可以直接简写为:id）
+在HTML属性中使用v-on:xxx来监听DOM事件，如v-on:click="doSomething"（可以简写为@click="doSometing"）
+在指令后使用.开头的特殊后缀被称为修饰符，如@click.prevent则代表对触发的事件调用event.preventDefault，修饰符可以使用链式书写，如@click.stop.prevent
+不带参数的v-bind可以用于绑定一个对象，该对象的属性名与HTML属性名一致
+
+模板中的表达式只能访问有限的全局对象列表，可以通过app.config.globalProperties来进行添加；
+如果想要编写JS表达式，则必须在v-bind/v-on属性中编写，或{{}}里编写。静态的属性只能用字符串文本值作为值
+
+
+2、响应式
+#1、setup()：一个用于组合式API的钩子，组合式API需要在其中声明，并把需要被组件模板访问的属性，方法包裹在对象中返回。一般不使用该函数，而是将组合式API声明在单文件组件的<script setup></script>中
+#2、ref()：返回一个带有value属性的对象，在模板中使用时可以直接通过返回的变量名访问其value。（组件首次渲染时，Vue会追踪渲染过程中的ref，当ref被修改时，它会触发追踪组件的重新渲染；这是通过在value的getter进行追踪，setter进行触发实现的）。ref()也可以自动进行深层嵌套对象的追踪，这是通过reactive()实现的。
+#3、reactive()：使对象本身具有响应性，这是深层嵌套处理的。函数返回的是一个JS代理，当对相同对象使用reactive()时返回的是同一个代理，当对reactive代理对象使用时返回本身。
+#4、shallowReactive()：与reactive类似，但是退出深层响应性。
+#5、nextTick()：当修改响应式状态时，Vue会存储这些操作，并在nextTick时批处理这些操作。通过await nextTick()可以确保在DOM更新完成后。
+#6、computed()：计算属性。该方法返回一个ref。参数可以是一个get函数，用于从响应值中计算新值并进行缓存，当依赖响应值未改变时，将保持使用缓存跳过计算。（参数也可以传递一个包含get/set的对象，set一般用于修改get中使用的依赖响应值，但一般不推荐为计算属性编写set）
+
+
+3、class与样式绑定
+#1、class绑定
+使用v-bind:class来进行类样式绑定，可以与class描述的静态值共存
+可以传递对象，如：<div :class="{active :isActive}"></div>，这里的isActive是一个ref，也可以直接给:class传递一个reactive()返回的响应式对象，或是一个计算属性。
+可以传递数组，如：<div :class="[activeClass]"></div>，这里的avtiveClass是一个ref，为空字符串时即不包含该值
+数组中可以嵌套对象进行使用
+#2、style绑定
+使用v-bind:style进行内联样式绑定
+可以传递对象，如：<div :style="{ color: activeColor}"></div>，这里activeColor是一个ref，也可以直接给:style传递一个reactive()返回的响应式对象
+可以传递对象数组，如：<div :style="[baseStyles, overridingStyles]"></div>，这里的baseStyles,overridingStyles是响应式对象，这些对象会被合并后渲染到同一元素上
+#3、说明
+编写的自定义组件在对外使用时，可以对其传递class。当自定义组件模板只有一个根元素时，外部传递的class会和该根元素class合并；当模板有多个根元素时可以通过$attrs.class来访问外部传递的class并自己决定传递给哪个根元素。
+:style中使用了需要浏览器特殊前缀的CSS属性时，Vue会自动为它们加上相应的前缀。Vue是在运行时检查浏览器是否支持，如果不支持则尝试加上浏览器特殊前缀。
+:style的属性值可以通过数组提供样式多值，如：<div :style="{ display: ['-webkit-box', '-ms-flexbox', 'flex'] }"></div>，Vue会从右往左查找支持的值并用于渲染
+
+
+4、条件与列表渲染
+#1、条件渲染
+模板中可以使用v-if指令来观察一个bool值，并决定是否渲染内容，如：<h1 v-if="awesome">Vue is awesome!</h1>
+v-if指令后还可以跟着，v-else-if/v-else指令。效果与js代码的if/else一样
+v-show指令与v-if效果类似。区别在于不能搭配v-else-if/v-else指令；v-show指令实际不移除元素，只修改display属性，所以切换开销会更小，但初始开销更大（因为v-if为false时直接不渲染了）
+#2、列表渲染
+模板中使用v-for进行列表渲染，如：<li v-for="(item, index) in items">{{ item.msg }} - {{ index }}}</li>。items为创建的ref数组，item则代表子项目别名，index代表索引
+v-for支持嵌套，如在一个使用v-for的元素中包含一个使用v-for的子元素
+v-for支持访问对象属性，其顺序等同于obj.values的顺序，这种情况下可以通过v-for="(value, key, index) in obj"访问obj的键，值，索引。
+v-for支持使用整数值，如：<span v-for="n in 10">{{ n }}</span>，这种情况下n取1~10
+使用v-for的时候支持使用v-bind:key来绑定key，这样Vue可以通过key来跟踪并保存子项的状态
+Vue能够侦听响应式数组的变化；但如果调用的是数组的不可变方法，则需要用新数组替换旧数组，即替换ref.value，这种情况下Vue会进行优化，而不是完全重新渲染。
+
+若想对处理一组元素，则可以使用template包裹，并对tempate使用指令
+v-if和v-for同时使用时，v-if的优先级更高。不推荐同时使用，而是改为外部元素使用v-for，内部元素使用v-if
+
+
+5、事件处理
+v-on指令（简写为@）可以用来表示监听事件，事件的值可以是内联的js代码（可以是直接的方法调用，也可以是箭头函数）；组件定义的方法名。
+如：传递event，通过$event来表示事件处理器的event对象
+<button @click="test($event)">
+  Submit
+</button>
+
+修饰符：
+用于事件：.stop停止事件传播/.prevent去除默认行为/.self当event.target为元素本身才触发/.once事件只触发一次/.capture改为事件传播模式/.passive表示listener永远不会调用preventDefault
+用于键盘按键监听：keyboardEvent.key所暴露的按键名称都可以作为修饰符（需要转为kebab-case形式），如.enter/.tab/.delete/.esc/.space/.up/.down/.left/.right
+用于鼠标按键监听：.left/.right/.middle
+用于系统按键监听：.ctrl/.alt/.shift/.meta，通常系统按键会搭配按键修饰符来表示同时按下两个按键的行为比如ctrl+enter
+.exact修饰符：用于精确控制触发事件时，所需的系统修饰符组合。如当使用了.enter.ctrl.exact则代表只能通过按下ctrl+enter（不可以包括其他系统按键）才能触发
+
+
+6、表单输入绑定
+使用v-model可以简化表单的绑定（对于表单通常要绑定值和监听事件来同步值，通过v-model来完成这个操作）。对于不同的类型的输入，v-model会自动使用对应的DOM属性和事件绑定
+#1、对于文本类型的<input>/<textare>，会绑定value和input事件
+#2、对于多选框和单选框（type为chexkbox和radio的<input>），会绑定checked和change事件。多个单选框绑定了相同的v-model则会被自动视为具有相同name的一组单选框
+#3、对于下拉选择器<select>，会绑定value和change事件
+说明
+#1、复选框和复选下拉选择器可以给v-model绑定一个数组
+#2、对于多选框/单选框/下拉选择器，可以使用:value设定其被选中时所呈现的值，:value可以是一个对象/变量。多选框还额外支持:true-value和:false-value表示其选中/未选中所呈现的值
+#3、默认的v-model支持修饰符.lazy将数据更新时机从input事件后改为change事件后；.number将用户输入转为数字；.trim去除头尾两端空格
+#4、支持自定义v-model
+
+
+7、生命周期
+setup函数中直接或间接的同步调用，可以注册对应生命周期的回调
+时序：
+#1、setup->beforeCreate->初始化选项式API->created->无预编译模板时即时编译模板->beforeMount->初始渲染并创建插入DOM节点->mounted
+#2、beforeUpdate->更新渲染并提交DOM->updated
+#3、beforeUnmount->取消挂载->unmounted
+常用：
+#1、常用：onBeforeMount/onMounted/onBeforeUpdate/onUpdated/onBeforeUnmount/onUnmounted
+#2、错误处理：onErrorCapture
+#3、开发调试：onRenderTracked/onRenderTriggered
+#4、keepalive相关：onActivated（初次挂载和从缓存恢复时调用）/onDeactivated（卸载和移入缓存时调用）
+
+
+8、侦听器：用于处理副作用
+#1、watch(source, callback, option?)：
+source可以是响应值，响应式对象，getter，或是它们的数组，当source发生变动时才会触发callbck；
+callback参数列表为（新值，旧值，onCleanup用于注册清理函数）；
+option包含：deep开启深度嵌套侦听（source为响应式对象会进行深度侦听，该选项针对的是getter返回对象的情况），默认false；immediate创建侦听器时立即执行一次回调（默认只在数据变化执行），默认false；once只执行回调一次，默认false；flush控制触发时机
+
+watchEffect(effect, option?)：
+effect即执行副作用的函数，参数只包含一个onCleanup用于注册清理函数，effect会在创建侦听器时立刻执行，并且会追踪这其中使用到的响应值（只做浅层追踪，只对同步调用或异步调用第一个await工作前访问的响应值追踪）。并且能在副作用发生期间追踪依赖（watch副作用发生时不进行追踪）
+option：flush选项控制触发时机
+
+说明：
+#1、注册清理：回调函数中直接使用onWatcherCleanup进行注册（这个函数必须同步回调中或者异步回调的await之前调用）；此外回调的参数onCleanup也可以用于注册且不受同步限制。注册的清理函数会在监听源变动时执行。
+#2、回调触发时机：flush选项默认为pre，即在父组件更新之后，所属组件的DOM更新之前调用回调，所以访问不到所属组件更新后的DOM；flush为post则在所属组件DOM更新后调用回调，效果等同于watchPostEffect；flush为sync则会在响应式数据变化时立刻触发（默认行为是会批处理的），效果等同于watchSyncEffect。
+#3、setup中同步注册的watch/watchEffect会在组件卸载时自动停止。如果异步注册了watch/watchEffect则需要手动调用它们返回的函数来进行停止。
+
+
+9、获取组件对应DOM引用
+使用useTemplateRef('val')创建一个响应值，然后在模板的元素中通过ref属性设置相同字符串'val'。在挂载后可以通过ref.value访问DOM实例，对于v-for渲染的列表元素，ref.value是一个数组。
+元素的ref除了传递字符串，还可以使用:ref传递一个回调函数，:ref="(el) => {  }，在组件挂载/更新时，el为对于DOM实例；组件卸载时，el为null。
+自定义组件也可以设置ref，这种情况获得的是组件实例。在使用选项式API或setup函数时，获得的实例等同于对应组件的this，可以访问其所有属性和方法；在使用<script setup>时，组件默认是私有的，子组件如果想被引用方访问需通过defineExpose()暴露一个对象，在该对象中添加需要暴露的属性和方法。

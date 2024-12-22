@@ -1,0 +1,176 @@
+1、普通用法
+class Point {
+    readonly x: number; //可用readonly修饰实例字段，只读字段只能再构造函数和初始化的地方修改
+    y: number;
+
+    //构造函数，如果要写多个构造函数，可根据ts的来重载实现
+    constructor(x = 0, y = 0) {
+        this.x = x;
+        this.y = y;
+    }
+
+    //一个方法
+    methodA(x: number): number {
+        return x + 1;
+    }
+}
+
+2、继承
+#使用interface检查是否有对应属性，一个类可实现多个接口
+需要注意的是接口只判断类是否能兼容接口，这意味着类可以不包含接口的可选属性，并且any属性也可能绕过一些接口的类型检查
+interface Pingable {
+    ping(): void;
+}
+class Sonar implements Pingable {
+    ping() {
+        console.log("ping!");
+    }
+}
+
+#使用extends实现继承
+class Base {
+    k = 4;
+
+    greet() {
+        console.log("Hello, world!");
+    }
+}
+
+class Derived extends Base {
+    constructor() {
+        super();//派生类构造函数中访问this时，必须先调用super()
+        console.log(this.k);
+    }
+    
+    //重写方法，子类的重写的方法，其类型必须可被父类方法兼容
+    greet(name?: string) {
+        if (name === undefined) {
+            super.greet();
+        } else {
+            console.log(`Hello, ${name.toUpperCase()}`);
+        }
+    }
+}
+
+3、属性的get/set
+class C {
+    _length = 0;
+    
+    //使用时通过属性名length来进行获取和赋值
+    get length() {
+        return this._length;
+    }
+    set length(value) {
+        this._length = value;
+    }
+}
+
+只有get时，则属性自动为readonly
+未指定set类型时，则通过get判断。(4.3后set的参数可以有不同的类型，比如把string|number联合类型都转化为number后赋值)
+get和set必须有相同的成员可见性
+
+4、类也可以使用索引签名
+但类的索引签名同时影响到方法，所以索引数据一般不通过类实例来存储，存放在另外一个位置比较好
+
+5、类的实例初始化顺序
+基类字段初始化
+基类构造函数运行
+派生类字段初始化
+派生类构造函数运行
+
+#如果派生类声明了一个基类同名字段，但不赋值，这会导致该值被初始化从而覆盖父类所设的值
+如果只是想给派生类的同名字段添加更准确的类型，而不赋初值，使用如：declare x:number;
+来申明字段，declare申明将导致编译的代码去除该行，即不会对js运行时产生影响
+
+6、成员可见性
+public：默认行为，不写修饰符即为public
+protected：仅子类/同类实例可见，子类可以将其修改重写为public。并且子类不能通过父类实例访问(Java可以)
+private：仅自身/同类实例可见。
+
+#成员可见性只做编译时期检查，这意味着js运行时可以直接访问，并且ts中可以通过x.['key1']来进行访问
+#真正的私有属性，使用#开头的变量命名，如#test = 1;（这是es2022的新功能，ts对于低版本使用weakMap实现硬私有）
+
+7、静态成员
+使用static关键字修饰字段，可直接通过类进行访问
+可使用成员可见性修饰，并且可继承。本质是构造方法上的属性
+#静态代码块用于访问静态字段，并执行一些代码
+
+8、泛型类
+如：
+class Box<Type> {
+    contents: Type;
+}
+泛型可以使用=设置默认类型，使用extends约束泛型
+泛型类对其静态字段无作用，只对实例属性有作用
+
+9、this关键字
+#1、想要确保this的作用范围
+#1.1、采用箭头函数，如：
+箭头函数本质是实例属性，因此每一个实例对象上都包含了该函数对象，会导致内存使用量增多
+getName = () => {
+    return this.name;
+};
+#1.2、采用this参数，如：
+在第一个参数位置使用this关键字，编译后会去除该项，在this指定类型与方法调用上下文不一致时，ts编译器会进行提醒
+function fn(this: SomeType, x: number) {
+    /* ... */
+}
+
+#2、this类型
+在类中，当this用作类型时，表示当前类的类型
+
+#3、this断言
+当在方法的返回位置使用this is Type关键字时，并且该方法返回boolean，则可以帮助编译器在if语句中推断范围
+如:
+isDirectory(): this is Directory {
+    return this instanceof Directory;
+}
+高级用法，判断可空字段是否不为空:
+class Box<T> {
+    value?: T;
+
+    hasValue(): this is { value: T } {
+        return this.value !== undefined;
+    }
+}
+
+10、参数属性
+在构造方法的参数中，使用可见性修饰符，或readonly，则该参数将成为实例属性，并被赋值
+如：Params的实例将包含x,y,z实例属性
+class Params {
+    constructor(
+        public readonly x: number,
+        protected y: number,
+        private z: number
+    ) {
+        // No body necessary
+    }
+}
+
+11、类表达式
+构建一个类并进行赋值，没有类名，但可以通过赋值的变量来进行初始化
+如：
+const someClass = class <Type> {
+    content: Type;
+    constructor(value: Type) {
+        this.content = value;
+    }
+};
+
+const m = new someClass("Hello, world");
+
+12、抽象类
+使用abstract关键字，该类不能被实例化，被abstract修饰的字段可以不做实现，但子类需要实现
+如：
+abstract class Base {
+  abstract getName(): string;
+ 
+  printName() {
+    console.log("Hello, " + this.getName());
+  }
+}
+
+13、类与类的关系
+由于ts比较类型是通过结构，而不是像Java那样比较className,
+因此只要结构相同，在声明时就可以互相替换。如：const p: Point1 = new Point2();//假设Point1与Point2结构一致
+因此如果一个字段集合(类A)大于另一个字段集合(类B)，则可以const B b = new A();

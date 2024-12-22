@@ -1,0 +1,21 @@
+1、项目脚手架
+Vite：轻量级，速度快的构建工具，类似于Webpack。为Vue单文件组件提供了第一支持。
+Vue CLI：Vue官方基于Webpack的Vue工具链
+
+2、浏览器内模板编译
+当以无构建步骤使用Vue时（组件模板写在页面的HTML中/内联的JS字符串中），需要在运行期执行动态模板编译，Vue需要将模板编译器运行在浏览器中。如果使用构建步骤，则可以在编译时期提前编译模板，这样就不需要在浏览器中运行模板编译器，可以减小打包的代码体积。
+
+Vue在打包构建时提供了多种格式的构建文件：
+前缀为vue.runtime.*的文件是只包含运行时的版本。即不包含模板编译器。
+名称中不包含.runtime的文件则是包含了模板编译器的版本
+
+默认工具链使用的是只包含运行时的版本。如果需要浏览器模板编译，可以更改构建工具配置，将 vue 改为相应的版本 vue/dist/vue.esm-bundler.js。如果需要更轻量级不依赖构建步骤的替代方案，可以尝试petite-vue。
+
+
+3、其他说明
+#1、IDE推荐使用VSCode，配合Vue-Official扩展。WebStorm也同样为Vue的单文件组件提供了很好的内置支持。
+#2、Vue的浏览器开发者插件支持浏览Vue应用的组件树/查看组件状态/追踪状态管理的事件/组件性能分析。支持Chrome扩展/Electron应用插件/Vite插件
+#3、类型检查：支持Typescript进行类型检查
+#4、测试：使用Cypress/Vitest/vite-jest用于测试Vue
+#5、代码规范：使用Webpack时可以通过loader来配置检查器；IDE可以按照插件如ESLint for VS Code；使用Vite可以通过命令npm install -D eslint eslint-plugin-vue配置
+#6、格式化：使用Vue-Official。或者Prettier。

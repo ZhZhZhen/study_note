@@ -1,0 +1,18 @@
+使用继承的方式去扩展一个构造函数的功能。
+通常通过一个方法，在方法内部新申明一个类并继承传入的构造函数，将该类返回出去达到功能的扩展
+如：
+
+type GConstructor<T = {}> = new (...args: any[]) => T;//声明一个限定类型的构造函数类型
+type Loggable = GConstructor<{ print: () => void }>;//这样表明被扩展的类需要包含一个print()方法
+
+function CatLog<T extends Loggable>(Base: T) {
+    return class CatLog extends Base {
+        myPrint(){
+             console.log('Mew');
+             print();//因为限定了被扩展类的类型，所以可以调用该方法
+        }
+    };
+}
+
+#特殊问题处理
+1、与装饰器使用时(比如类装饰器通过混合返回了一个新的构造方法)，会无法支持类型检测。此时需要通过as进行类型断言

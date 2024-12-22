@@ -1,0 +1,42 @@
+1、防抖：操作时不执行，不操作一段事件才执行
+每次调用时清除定时器，再重新设置定时器。这样连续调用由于清除定时器，所以不会触发，只有一段时间不调用，定时器才会触发
+//在一段连续触发中的最后一次触发
+function debounce(fn, delay) {
+        let timer = null;
+        return function () {
+          clearTimeout(timer);
+          timer = setTimeout(() => {
+            fn.apply(this, arguments);
+          }, delay);
+        };
+}
+
+//在一段连续触发中立刻触发一次
+function debounce(fn, wait) {
+    let timeout = null;
+    return function() {
+        let context = this;
+        let args = arguments;
+        if (timeout) clearTimeout(timeout);
+        let callNow = !timeout;
+        timeout = setTimeout(() => {
+            timeout = null;
+        }, wait);
+        if (callNow) fn.apply(context, args);
+    };
+}
+
+2、节流：一段时间内必须执行一次
+记录一个起始时间start，每次调用时判断当前时间now和start的差值，当大于给定区间才执行，并更新start=now
+function throttle(fn, time) {
+  let lastTime = 0;
+  return function(...args) {
+    const nowTime = new Date().getTime();
+    if (nowTime - lastTime >= time) {
+      fn.apply(this, args);
+      lastTime = nowTime;
+    }
+  };
+}
+
+*在真正执行函数的时候，可以通过apply来调用，记得修改传入this指向和arguments

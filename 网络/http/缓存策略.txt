@@ -1,0 +1,17 @@
+概念：在HTTP返回的响应中，通过响应头来制定缓存策略。早期使用Expires响应头判断缓存，现在的标准则使用Cache-Control搭配Etag/Last-Modified进行缓存判断。若Expires和Cache-Control同时存在则Cache-Control优先级更高。
+
+缓存响应头：
+1、Expires：单位为秒（如：Wed, 31 Dec 1969 23:59:59 GMT），通过与本地客户端时间比较判断是否缓存。
+2、Cache-Control：Cache-Control不同的值会影响到不同的缓存策略。
+public：指客户端和代理服务器都可以进行缓存
+private：仅客户端可以进行缓存
+no-cache：需进行协商缓存才能判断是否使用缓存
+no-store：不可进行缓存
+max-age=xxx(秒)：缓存将在xxx秒后失效
+3、Etag：资源内容的签名ID。
+4、Last-Modified：资源内容上次修改时间，该请求和Etag同时使用时Etag优先级更高。
+
+缓存判断过程：经历 直接请求判断->强制缓存->协商缓存来确定是否使用缓存
+1、当Cache-Control为no-store或本地无缓存，则直接进行请求。
+2、强制缓存：若Cache-Control为max-age=xxx且未过期，或是Expires未过期，则直接使用缓存。
+3、协商缓存：若Cache-Control为no-cache，则判断上次缓存的响应是否包含Etag/Last-Modified，有则构建请求，并在请求头中添加If-None-Match:Etag/If-Modified-Since:Last-Modified。进行请求后，若服务端返回304则代表缓存有效，此时服务端的响应体不会携带数据，客户端直接使用原有的缓存；若服务端返回200则代表缓存失效，并在响应体中返回新的数据。若协商缓存过程中，无Etag/Last-Modified则直接进行请求。

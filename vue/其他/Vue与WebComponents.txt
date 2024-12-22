@@ -1,0 +1,23 @@
+WebComponents是一组Web原生API的统称，允许开发者创建可复用的自定义元素。
+自定义元素可以在使用任何框架或不使用框架的场景下使用。
+
+1、在Vue中使用自定义元素
+#1、跳过组件解析：Vue默认会把非原生的HTML标签优先当作Vue组件处理，而将渲染自定义元素作为后备选项，这导致开发时对于自定义元素会出现解析组件失败警告。需通过构建中配置选项compilerOptions.isCustomElement进行配置。（如果开启了运行时编译也可以通过app.config.compilerOptions.isCustomElement配置）。如：isCustomElement: (tag) => tag.includes('-')
+
+#2、传递DOM属性：若自定义元素遵循标准则没有使用问题，但有时需通过v-bind+prop修饰符来进行绑定
+如：<my-element :user.prop="{ name: 'jack' }"></my-element>
+
+
+2、使用Vue构建自定义元素
+使用defineCustomElement包裹组件对象创建自定义元素构造器，然后使用WebAPI中的customElements.define(key, ElementConstructor)进行注册便可使用。
+使用Vue构建自定义元素时，会有大约16kb的打包大小，因此一般用于编写一组拥有复杂逻辑的自定义元素。如果Vue自定义元素在同样使用Vue的应用中使用，可以选择将构建包中的Vue外部化，以此和宿主应用使用同一份Vue。
+#1、描述
+生命周期：在元素的connectedCallback初次调用时，一个Vue自定义元素会在内部挂载一个Vue组件实例在它的shadow root上；元素的disconnectedCallback调用时，Vue会在一个微任务后检查元素是否留在文档流中，若不存在则说明元素被移除，组件实例会被销毁。
+Props：所有使用props选项声明了的props都会作为自定义元素的属性，并且Vue也会自动将attribute做类型转换用于组件。
+事件：this.$emit/setup中emit触发的事件都会作为CustomEvents的形式从自定义元素上派发，额外的事件参数会作为该事件对象上的detail数组
+插槽：不支持作用域插槽，具名插槽使用slot属性。其他与Vue使用插槽一致。
+依赖注入：provide/inject在自定义元素中可以正常工作，但是依赖关系只在自定义元素之间起作用。
+应用级配置：defineCustomElement的第二个参数中，可以通过该对象的configureApp选项配置Vue自定义元素的应用实例。
+#2、使用单文件组件编译自定义元素
+要解决的问题：单文件组件的<style>在生产环境构建时会被抽取合并到一个单独的CSS文件中，但是编写自定义元素时应注入到自定义元素的shadow root上。
+解决方式：使用自定义元素模式，将单文件组件的文件以.ce.vue结尾即可。该模式的单文件组件会内联其<style>标签为CSS字符串，并暴露为组件的styles选项，这样会被defineCustomElement提取并在初始化时注入到元素的shadow root上。（也可以通过构建中的customElement来配置自定义元素模式）

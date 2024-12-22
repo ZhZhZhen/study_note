@@ -1,0 +1,3 @@
+1、使用Hooks：useMemo/useCallback缓存结果，跳过不必要的耗时工作；使用useTransition/useDeferredValue用于创建一个低优先级的渲染（会被同步渲染中断）。
+2、使用API：通过lazy获得一个懒加载组件；通过memo获得一个Props相同时跳过渲染的组件
+3、非阻塞渲染：使用startTransition或useDeferredValue来开始一次低优先级的渲染，低优先级的渲染会被同步渲染打断（执行完同步渲染后再进行低优先级的渲染）。

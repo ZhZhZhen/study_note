@@ -1,0 +1,55 @@
+声明式编程意味着为每个视图状态声明UI，而非细致地控制UI（命令式）
+*1、开发组件时如何编写状态
+	#1、列出组件中的视图状态
+	#2、确定如何触发视图状态的改变
+	#3、使用useState维护视图状态
+	#4、优化state，删除不必要的state变量
+	#5、连接事件处理函数去设置state
+
+*2、如何优化state
+	#1、合并相关联的state。如两个state一直同时更新，则可以合并
+	#2、避免矛盾的state
+	#3、避免冗余的state。如一个state可以由其他的state计算而得，则可以去除
+	#4、避免重复的state。如有时候考虑保存对象标识符（如数组索引），而不是对象本身（已在数组中保存）
+	#5、避免深沉嵌套的对象state。更新会变得复杂，考虑展开扁平化
+	#6、谨慎将props放入state中，除非明确阻止props更新state
+
+3、共享状态
+	#1、从子组件中移除状态，并将状态放入公共父组件中
+	#2、父组件通过props传递给子组件
+	#3、如果需要子组件控制父组件状态，则父组件通过props传递事件处理函数
+由props驱动的组件称为受控组件，由state驱动的组件成为不受控组件，一个组件可以既是受控组件也是非受控组件。
+
+4、保存和重置state
+state并不是保存在JSX标签中，它由React管理，与在渲染树中JSX的位置相关联。
+在渲染树中相同位置如果渲染的是相同组件，则组件的state会保留；如果相同位置渲染了不同组件，则原组件及其子组件和它们的状态都会从渲染树中移除。
+通过使用不同key，React可以为相同位置的相同组件重置state；使用相同key，也可以在父组件中不同的位置保存state（不使用key，相当于key为该组件在父组件中的位置）。
+
+如何为移除的组件保留信息
+	#1、把所有组件都渲染出来，但通过CSS隐藏（不推荐，会有性能问题）。
+	#2、将state提升至父组件保存。
+	#3、通过其他数据源保存数据，之后读取恢复
+
+5、Reducer和Context的应用
+Reducer：用于整合状态的更新逻辑。来源于数组的reduce方法的参数，参数为(当前结果, 当前的值)，返回内容为下一个结果。
+	#1、编写的reducer为(当前状态，当前action)=>下一个状态。
+	#2、useReducer(reducer, initialState)来返回[state, dispatch]。
+	#3、使用dispatch来发送action，action会被收集到数组中，并在下一次渲染时用于求新state。
+*reducer要求为纯函数，可以使用useImmerReducer()来通过Immer以突变的方式修改对象。
+
+Context：Context使组件向其下方整个树提供信息
+	#1、通过createContext(defaultVal)创建
+	#2、父组件通过<ContextName.Provider value={...}>包裹子组件并通过value更新值，否则子组件只会收到默认值。
+	#3、子组件通过useContext(ContextName)来获取值，这样会向上访问最近ContextName.Provider组件的值
+*使用Context之前，可以考虑直接传递Props，或是直接将JSX作为children传递。避免滥用Context。
+
+*6、Reducer和Context一起使用
+	#1、父组件使用useReducer，并为返回的state和dispatch分别创建Context去传递。
+	#2、子组件使用useContext去获取父组件传递的state/dispatch。
+考虑使用单独的文件来维护状态更新逻辑，在该文件中
+	#1、维护Reducer函数，创建Context。
+	#2、自定义一个组件使用useReducer()提供state和dispatch，并返回对应的Context.Provider组件向子组件转递。
+	#3、通过自定义Hooks来包装useContext()，使代码更具逻辑性。
+	
+	
+	

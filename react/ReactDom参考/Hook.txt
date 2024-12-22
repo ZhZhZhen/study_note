@@ -1,0 +1,4 @@
+Form Hooks
+1、useFormStatus()
+	返回值：一个对象用于标识父级<form>的信息，{pending, data, method, action}。pending表示是否在提交；data表示正在提交的formData（没有进行提交则为null）；method表示form使用的HTTP方法（get/post）；action表示form的action属性（如果设置了URI或未指定则为null）
+	*说明：#1、使用useFormStatus的组件必须是form的子组件

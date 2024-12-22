@@ -1,0 +1,10 @@
+相同点：都存储在客户端
+不同点：
+1、容量：Cookie不超过4k，而Storage可以存储5M+
+2、时效：Cookie过期时间前有效，localStorage永久存储，sessionStorage在当前浏览器窗口关闭后失效
+3、Cookie会在页面访问时伴随URL发送到服务端，Storage则不会发送给服务器。
+
+
+*扩展
+1、SessionStorage生命周期等于当前浏览器tab，刷新依然可以访问（重新加载或恢复页面会保持原来的页面会话）。多个相同URL的Tabs页面会创建各自的SessionStorage，关闭对应tab时会清除对应SessionoStorage。
+2、不同协议下的Storage相互隔离，如http://example.com 与 https://example.com下的Storage是相互隔离的。

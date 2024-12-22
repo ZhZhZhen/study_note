@@ -1,0 +1,98 @@
+State Hook：帮助组件保存状态，并在更新状态时触发渲染。
+1、useState(initialState)
+	参数：可传递初始化值，或初始化函数（无参，返回结果作为初始state）
+	返回值：[state, setState]，setState可传递下一个值，或更新函数
+	*说明：#1、严格模式下，React将调用两次初始化函数/更新函数。#2、渲染期间只允许调用组件内部的setState方法，这会使得组件函数返回的JSX被丢弃并立即尝试以新状态重新渲染。#3、状态更新是批量处理的，如果想提前更新可以使用flushSync强制更新。#4、setState提供的新值如果和当前state相同（Object.is判断）则会跳过重新渲染该组件及其子组件。
+
+2、useReducer(reducer, initialArg, init?)
+	参数：reducer用于更新state，参数为(state, action)；initialArg为初始值；init如果存在则初始值为init(initialArg)的结果，后续init函数将不会执行。
+	返回值：[state, dispatch]，dispatch用于传递action
+	*说明：#1、严格模式会调用两次reducer和初始化函数。#2、如果reducer返回的state与当前state一致则不会触发组件及子组件重渲染（Object.is判断）#3、状态更新是批量处理的，如果想提前更新可以使用flushSync强制更新。
+
+
+Context Hook：帮助组件直接从祖先组件接收信息，而无需通过props逐级传递。
+3、useContext(SomeContext)
+	参数：使用createContext创建的context
+	返回值：返回最新的context值，组件会查找最近的SomeContext.Provider组件，并获取其value；弱没找到，则使用createContext的默认值。
+	*说明：#1、若context发生变化，React会自动重新渲染读取context的子组件（旧值和新值会通过Object.is比较）。
+
+Ref Hook：允许组件保存一些不用于渲染的信息，更新ref不会触发渲染。
+4、useRef(initialValue)
+	参数：用于返回对象的current属性，该参数首次渲染后忽略。
+	返回值：只包含current属性的对象。当该对象作为ref属性传递给内置组件，则在DOM节点显示时，current属性会指向该DOM节点。。
+	*说明：#1、除了初始化外，不应该在渲染期间读写ref.current。#2、严格模式下React会调用两次组件，使得ref对象被创建两次。#3、useRef在后续渲染返回的是同一个对象。
+
+5、useImperativeHandle(ref , createHandle, dependencies?)：用于自定义组件（该组件需使用forwardRef转化为可接收ref组件）为收到的ref.current传递对象
+	参数：ref是从forwardRef函数中获得的第二个参数；createHandle是一个无参数并返回对象的函数；dependencies用于声明createHandle中用到的响应式值，若重新渲染时依赖列表发生变化（Object.is判断）则会重新调用createHandle并将新生成的对象分配给ref.current。
+	返回值：无
+	*说明：#1、该Hook一般用于自定义组件想通过限定返回给ref.current的对象，以此来限制父组件可以调用的方法。
+
+
+Effect Hook：允许组件连接到外部系统并与之同步
+6、useEffect(setup, dependencies?)
+	参数：setup是用于处理Effect的函数，可以选择返回一个cleanup函数。setup会在组件提交DOM时执行，每次渲染且依赖项变更时，React将先使用旧值执行cleanup函数，然后使用新值执行setup函数，最后组件从DOM移除会执行最后一次cleanup函数；dependencies依赖数组包含了setup代码所使用的响应时值。（使用Object.is判断相等）
+	返回值：无
+	*说明：#1、严格模式下，真正的setup首次运行前，会进行额外的setup+cleanup。#2、Effect只能在客户端上运行，服务端渲染不会运行。#3、如果Effect不由交互（如点击）引起那么会在浏览器绘制更新内容后执行。#4、如果Effect由交互引起，那么有可能在浏览器绘制更新内容前/后执行（时机是不确定的）。如果明确希望在绘制之前执行则使用useLayoutEffect；明确希望在绘制之后执行则使用setTimeout。
+
+7、useLayoutEffect(setup, dependencies?)：useEffect的另一个版本，主要区别在于其Effect在浏览器重新绘制屏幕之前触发。
+	参数：与useEffect的区别在于setup会在组件提交DOM，浏览器绘制之前执行；dependencies同useEffect
+	*说明：#1、同useEffect#1#2说明。#2、useLayoutEffect的内部代码，及其触发的状态更新以及状态更新导致的重渲染都会阻塞浏览器重新绘制屏幕。所以可能会影响性能，应当尽可能使用useEffect。#3、如果useLayoutEffect内部触发了状态更新，那么React会立即执行所有剩余的Effect，包括useEffect。
+
+8、useInsertionEffect(setup, dependencies?)：仅为CSS-in-JS库所打造，当需要动态注入<style>标签时才使用，否则不应该使用。
+	参数：与其他Effect的区别在于setup会在组件提交DOM，但触发布局之前执行；dependencies同useEffect
+	*说明：#1、只能在客户端上运行，服务端渲染不会运行。#2、不能在useInsertionEffect中更新状态。#3、useInsertionEffect运行时，refs尚未添加。#4、useInsertionEffect会同时触发cleanup和setup函数，这会导致cleanup和setup交错执行。
+
+9、useEffectEvent(eventHandle)
+	参数：一个函数包含需要在Effect中运行的非响应式代码。
+	返回值：返回与eventHandle相同参数列表的函数。
+	*说明：#1、返回的函数只能在Effect中执行，并且必须声明在同一个组件/Hook中。#2、在useEffectEvent中可以访问到最新的响应式值，而不像Effect只能读取快照值。
+
+
+性能 Hook：useMemo/useCalllbck用于缓存结果，跳过不必要的耗时工作；useTransition/useDeferredValue用于创建一个低优先级的渲染（会被同步渲染中断）
+10、useMemo(calculateValue, dependencies)
+	参数：calculateValue要缓存计算的函数，无参，返回内容将被缓存；dependencies包括计算时使用的响应式值，若重新渲染时依赖列表发生变化（Object.is判断），则需重新执行calculateValue计算结果。
+	返回值：初次渲染时，返回calculateValue的结果。后续渲染依赖项没变化则返回上次缓存结果，否则再次调用calculateValue并返回新结果。
+	*说明：#1、严格模式下calculateValue会被调用两次。#2、通过useMemo包裹返回JSX的函数，可以帮助在依赖项相同时跳过该子组件渲染。通常更好的手段是通过memo函数转化子组件。
+
+11、useCallback(fn, dependencies)
+	参数：fn为要缓存的函数，参数返回值无限制要求，fn不用于useCallback执行；dependencies为判断是否更新fn的依赖列表（Object.is判断）
+	返回值：初次渲染时返回传入的fn，后续渲染若依赖项没改变则返回缓存的fn，否则返回新的fn。
+	*说明：#1、编写自定义Hook时，若要返回函数，建议使用useCallback包裹
+
+12、useTransition()
+	返回值：[isPending, startTransition]，isPending表示是否存在待处理的transition；startTransition(scope): undefined，使用时传递一个在内部调用setState的函数scope，scope会立即被React同步调用，且其中同步安排的状态更新会被标记为transition。
+	*说明：#1、如果scope尝试稍后执行状态更新（例如创建定时器执行），则这些状态更新不会被标记为transition。#2、标记为transition的状态更新优先级会低于同步状态更新。#3、transition不能用于控制文本输入。#4、组件外可以导入startTransition方法来实现功能，但这样无法观察isPending。
+	*理解：transition的渲染依然是在主线程中执行的，如果进行500个组件(每个1ms)transition渲染，那么可以在执行第300个组件渲染时插入一个同步渲染，第300个组件transition渲染完成转而处理同步渲染，再回来处理第301个组件及后续渲染。但是如果1个组件(500ms)transition渲染在进行，这个时候插入同步渲染，就得等到它完成才行，因此表现的就是页面卡住了一样。
+	用法：#1、用来避免Suspense显示fallback，Suspense下的一个子组件如果使用了transition状态更新触发渲染，则这个组件不会使Suspense显示fallback。2、使用ErrorBoundary来在startTransition执行出错时显示fallback。
+
+13、useDeferredValue(value, initialValue?)
+	参数：value为想要延迟的值；initialValue为初次渲染使用的延迟值，如果没该参数，则初次渲染不会延迟，因为没有可以用于渲染的先前版本的值。
+	返回值：在更新期间React会尝试使用旧值进行渲染，然后采用新值重新安排一次低优先级的渲染。初次渲染若无initialValue，则不会进行延迟渲染。
+	*说明：#1、如果一个更新被标记为transition，则其中的useDeferredValue只返回新值，并且不会触发延迟渲染，因为已经被延迟了。#2、useDeferredValue接收到不同的值（Object.is比较）才会安排延迟渲染。#3、触发的延迟渲染与transition一样优先级低，会被同步渲染中断，之后再继续进行。如果延迟渲染期间，useDeferredValue收到新值，则React会放弃该次延迟渲染（比如当前渲染500个1ms组件，渲染到300个，不再渲染301~500就中断该次渲染。短时间安排的多次延迟渲染，也只会取最后一次新值用于延迟渲染）。#4、useDeferredValue触发的延迟渲染在提交到屏幕之前不会触发Effect（意味着新值的渲染提交到屏幕才会执行Effect）。
+	用法：#1、常搭配memo，suspense来使用。使用memo跳过参数相同时的渲染，并将deferredValue用于参数，这样使用旧值就会跳过渲染，而使用新值的渲染会被安排在较低优先级；使用Suspense时，大部分情况下低优先级的渲染不会使其显示fallback，而是显示上一次内容。
+
+
+其他 Hook：主要适用于库作者，不常在应用程序代码中使用。
+14、useDebugValue(value, format?)：用于在React开发工具为自定义Hook添加标签
+	参数：value可以为任何类型，在React开发工具显示的值；format如果存在，显示值为format(value)的返回结果，没有被检查时不会调用。
+	
+15、useId：生成传递给无障碍属性的唯一ID
+	返回值：返回一个唯一的字符串ID，返回值是根据组件在树结构中的父路径来决定的，这是为了确保服务端渲染和客户端渲染会有一致的ID
+	*说明：#1、如果一个页面渲染多个独立的React应用，为了确保ID唯一，可以在客户端createRoot/hydrateRoot，服务端如renderToPipeableStream传递标识符前缀identifierPrefix。这样每个React应用的ID都会加上对应前缀。
+	用法：#1、一些标签有无障碍的属性，可以通过ID对不同标签做无障碍关联。如aria-describedby属性。
+
+16、useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot?)：用于订阅外部store
+	参数：subscribe为一个函数，该函数需接收callback并订阅在store上，并返回一个解除订阅的函数。callback会由React提供，内容即调用getSnapshot，并在值变动时重新渲染组件；getSnapshot为一个函数，用于返回store的数据快照，store不变时重复调用getSnapshot需返回同一个值（Object.is判断）；getServerSnapshot为一个函数，返回store的数据初始快照，只用于服务端渲染，以及客户端激活服务端渲染内容时。该值服务端与客户端之间必须相同。（因为有些api服务端用不了，又或是需要同步第三方store的数据，可以通过服务端渲染时生成一个<script标签>放入全局变量供客户端读取同步。）
+	返回值：该store当前的数据快照
+	#注意：#1、getSnapshot返回的数据快照是不可变的，如果store有数据变动，则应该返回一个新的不可变数据快照。#2、重新渲染时传入一个不同的subscribe函数，React会重新订阅。#3、如果在非阻塞transition更新过程中更改了store中的数据，React将回退并将该更新视为阻塞更新。具体为每次Transition更新时，React会在提交DOM更新之前第二次调用getSnapshot，如果返回与初次调用值不同，React会从头开始阻塞更新。#4、对外部store的变更无法被标记为非阻塞更新。
+
+17、useActionState(fn, initialState, permalink?)：用于根据表单动作结果更新state
+	参数：fn与传递给表单的action类似，表单提交时触发，相比于表单的action，fn第一个参数为上一个state（初始为initialState），第二个及之后的参数等同于表单使用的action的参数；initialState为state的初始值，作为表单初始状态，后续被忽略；permalink为包含此表单修改的唯一页面URL的字符串。
+	返回值：[state, formAction]，state初始为initialState，后续为参数fn所返回的state；formAction用于表单的action属性。
+	*注意：#1、不使用服务器组件时，useActionState的特性与本地state相同。
+	*理解：在客户端的表现，大概就是formAction随着表单动作的触发，useActionState会获取上一个状态，并加上formAction收到的参数，一起传递给fn。我们在fn中根据表单结果返回新状态。
+
+18、useOptimistic(state, updateFn)：用于乐观的更新用户界面，即最终状态还未获取时，使用期望状态更新界面。
+	参数：state用于初始时和没有挂起操作时作为返回的值；updateFn(currentState, optimisticValue)为一个函数，接收当前state和乐观值，并返回乐观状态（乐观值指请求时还没获取到值，但是你期望获得的值。乐观状态同理）
+	返回值：[optimisticState, addOptimistic]，OptimisticState为乐观状态，无挂起操作时等同于参数state，否则等同于updateFn返回的状态；addOptimistic用于触发乐观状态更新的函数，接收一个乐观值，内部就是以state和乐观值调用updateFn。
+	*理解：其实就是在获取请求结果这一过程中，你期望显示的内容。因为此时还没请求到内容，但你给了一个乐观值（期望值）用于生成乐观状态，来短暂地以乐观状态展示内容。

@@ -1,0 +1,10 @@
+1、可迭代对象：实现了Symbol.iterator属性的对象(js中symbol可作对象的key)，Symbol.iterator同样是Iterable接口的一个属性
+
+2、使用for...of来循环可迭代对象
+如：
+const someArray = [1, "string", false];
+for (const entry of someArray) {
+    console.log(entry);
+}
+
+#for...in是用来循环对象自身和继承的非symbol可枚举属性（enumerable为true的属性），并且能对所有对象使用

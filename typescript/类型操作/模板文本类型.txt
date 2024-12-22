@@ -1,0 +1,33 @@
+1、普通用法
+type World = "world";
+type Greeting = `hello ${World}`;
+则Geeting为'hello world'字符串文本类型
+
+2、配合联合类型使用
+相当于将联合类型的成员类型分别套用模板，并返回结果的联合类型
+当模板多个位置使用联合，则使用交叉乘法套用模板，并返回结果的联合类型
+
+3、特殊使用事例
+type Origin = {
+    key1:number;
+    key2:number;
+}
+type PropEventSource<Type> = {
+    on(eventName: `${string & keyof Type}Changed`, callback: (newValue: any) => void): void;
+};
+on的参数eventName采用模板文本类型，如传入Origin, 则eventName类型为'key1Changed'|'key2Changed'
+
+type PropEventSource<Type> = {
+    on<Key extends string & keyof Type>
+        (eventName: `${Key}Changed`, callback: (newValue: Type[Key]) => void ): void;
+};
+on是一个泛型方法，其泛型Key取自Type的键的联合类型
+方法参数eventName采用模板文本类型，根据泛型决定参数的文本类型
+相比于上一个的例子，该方法可以依赖泛型的自动推测，来根据泛型推测出callback的具体类型
+
+4、内部字符串操作类型
+4.1之前内置于编译器以提高性能，4.1开始实际实现为调用js的对应方法
+Uppercase<StringType>:转大写
+Lowercase<StringType>:转小写
+Capitalize<StringType>:首字符大写
+Uncapitalize<StringType>:首字符小写

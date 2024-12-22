@@ -1,0 +1,69 @@
+用于对联合类型进行映射，来生成以联合类型成员为key的类型，只能使用type关键字申明
+如：
+type Test = {
+    [Prop in 'key1'|'key2']: boolean;
+};
+Test类型为{key1: boolean; key2: boolean;}
+
+1、常规一般搭配泛型使用，如：
+type OptionsFlags<Type> = {
+  [Property in keyof Type]: boolean;
+};
+type FeatureFlags = {
+  darkMode: () => void;
+  newUserProfile: () => void;
+};
+type FeatureOptions = OptionsFlags<FeatureFlags>;
+则FeatureOptions为{darkMode: boolean; newUserProfile: boolean;}
+
+2、搭配映射修饰符来修改只读性，可空性：
+使用-+，不添加符号默认为+，如：
+#去除所有属性的可空性
+type Concrete<Type> = {
+  [Property in keyof Type]-?: Type[Property];
+};
+
+#为所有属性添加readonly
+type CreateMutable<Type> = {
+  readonly [Property in keyof Type]: Type[Property];
+};
+
+3通过as进行key的重映射，如：
+#使用样例: as右边为key指定一个新类型，一般是文本类型，如果映射为never，则相当于去除该key
+type MappedTypeWithNewProperties<Type> = {
+    [Properties in keyof Type as NewKeyType]: boolean
+}
+
+#将Type的所有属性添加get前缀
+type Getters<Type> = {
+    [Property in keyof Type as `get${Capitalize<string & Property>}`]: () => Type[Property]
+};
+
+#映射为never，如去除Type中的kind属性
+Exclude<T,P>返回的T中去除P的剩余联合类型，所以Exclude<'kind','kind'>返回的时never
+type RemoveKindField<Type> = {
+    [Property in keyof Type as Exclude<Property, "kind">]: Type[Property]
+};
+
+4、in关键字可以映射任意联合类型，不仅仅是string|number|symbol，如:
+type EventConfig<Events extends { kind: string }> = {
+    [E in Events as E["kind"]]: (event: E) => void;//注意这里没用keyof关键字，所以把Events当成联合类型
+}
+ 
+type SquareEvent = { kind: "square", x: number, y: number };
+type CircleEvent = { kind: "circle", radius: number };
+ 
+type Config = EventConfig<SquareEvent | CircleEvent>
+
+5、类型申明的区域 可以使用其他类型申明语法
+如:
+#使用索引类型
+type Concrete<Type> = {
+  [Property in keyof Type]: Type[Property];
+};
+
+#使用条件类型
+type Concrete<Type> = {
+  [Property in keyof Type]: Property extend Animal? true: false;
+};
+

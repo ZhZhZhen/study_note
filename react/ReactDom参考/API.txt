@@ -1,0 +1,46 @@
+客户端API
+1、createRoot(domNode, options?)
+	用处：在domNode中创建根节点，之后需要调用render()来开始渲染。
+	参数：domNode为一个dom元素，React将为其创建一个根节点；options{onCaughtError, onUncaughtError, onRecoverableError, identifierPrefix}为配置项，前3个为发生对应错误的回调（被ErrorBoundary捕获的错误，无法捕获的错误，发生错误自动恢复的错误），identifierPrefix用于配合useId()为生成的唯一id配置前缀（用于区分网站中不同位置的React应用所生成的id）
+	返回值：一个包含render和unmount方法的对象。render(ReactNode)以ReactNode在React的根节点中渲染为DOM节点并显示；unmount()用于销毁React根节点中已经渲染的树，并且不能再调用render。
+	*说明：#1、首次调用render会清空根节点中所有已存在的DOM节点，后续调用则为重新渲染并将差异化更新至DOM（类似于根组件调用了setState）。#2、unmount一般不调用，如果React的根节点中的DOM节点被其他框架所维护时，才可能调用用来卸载根节点内的所有组件，移除所有React绑定的事件处理函数以及组件树上的状态。调用之后就不能再调用render（只能重新createRoot再render）
+
+2、hydrateRoot(domNode, reactNode, options?)
+	用处：当使用服务端渲染时会向浏览器传输带有内容的HTML文档，使用该函数将React连接到该HTML中，接管其中的DOM节点，并绑定事件处理函数。
+	参数：domNode为服务端渲染时作为根元素的DOM节点；reactNode为React组件中要绑定的根组件；options与createRoot一致。
+	返回值：返回内容以及作用与createRoot一致。
+	*说明：#1、hydrateRoot期望渲染的内容必须和服务端渲染内容完全相同。React可以从一些匹配错误中恢复，但是应该把不匹配当作bug进行修复。#2、组件属性suppressHydrationWarning可以抑制不匹配的警告，只在当前组件生效，通常用于文本，不可以滥用。#3、如果有意生成不同的内容，则可以使用useEffect，因为服务端无法运行Effect。初始渲染与服务端渲染一致，然后通过Effect触发状态变更来进行二次渲染改变内容。
+
+3、createPortal(children, domNode, key?)
+	作用：用于将JSX作为children，但是渲染至DOM的不同部分（组件依然在渲染树中，但是生成DOM节点在指定的位置）
+	参数：children可以为React能渲染的任何内容；domNode为需要放置内容的DOM节点，更新过程中若传递不同的DOM节点会导致portal内容被重建；key为用作portal的独特字符串或数字。
+	返回值：返回一个React节点，React渲染过程中遇见该节点，会将其children对应的DOM节点放入到domNode中。
+	*说明：#1、portal的事件传播遵循的是React组件树而不是DOM树，这意味着事件会从组件树中的子节点冒泡到父节点。
+
+4、flushSync(callback)
+	作用：强制React刷新所有挂起工作并同步更新DOM，这样flushSync的后续代码就能访问到更新的DOM。
+	参数：callback为一个函数。React会立即调用该函数，并同步刷新其中包含的任何更新。
+	*说明：#1、可能会严重影响性能，谨慎使用。#2、flushSync可能会使得Suspense显示fallback；可能会运行挂起的Effect，并同步其包含的更新；可能会在必要时刷新回调函数（callback）之外的更新。
+
+
+预加载资源API
+prefetchDNS(href)：提前查找期望从中加载资源的服务器IP
+preconnect(href)：提前连接到一个期望从中加载资源的服务器
+preload(href, options)：预加载期望使用的资源
+preloadModule(href, options)：预加载期望使用的ESM模块
+preinit(href, options)：预加载并解析执行样式表或外部脚本
+preinitModule(href, options)：预加载并解析执行ESM模块
+	参数：href为要预载的资源路径；options为配置项目，每个方法各有不同，但都需要as指定资源的类型
+	*说明：#1、每个方法的多个等效与单次调用效果是一样的，比如调用两次具有相同href的prefetchDNS方法。#2、浏览器中可以在渲染组件时/Effect/事件处理函数中调用；服务端渲染只能在渲染组件时/源自渲染组件的异步调用中调用。#3、prefetchDNS和preconnect预连接到与网页本身相同的服务器时没有意义，如果明确预加载的具体资源时使用另外四个方法比较好。#4、prefetchDNS相比于preconnect来说，一般用于尝试与大量域名进行推测性连接。
+
+
+服务端API
+主要用于从服务端渲染HTML
+输出为NodeJS流
+renderToPipeableStream
+renderToStaticNodeStream
+输出为Web流
+renderToReadableStream
+非流式环境
+renderToString
+renderToStaticMarkup

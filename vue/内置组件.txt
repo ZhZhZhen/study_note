@@ -1,0 +1,66 @@
+1、Transition：当Transition中的元素被插入或移除时，为其做过渡或动画效果。
+子元素需要指定特殊的class，然后这些class会在适当时机被增加或移除。
+v-enter-from：进入动画的起始状态。元素插入前添加，元素插入完成后的下一帧移除。
+v-enter-active：进入动画的生效状态。元素插入前添加，过渡或动画完成后移除。可以做transition过渡效果或animation动画效果；对于动画效果，一般不需要指定from/to class
+v-enter-to：进入动画的结束状态。v-enter-from移除时添加，过渡或动画完成后移除。
+v-leave-from/v-leave-active/v-leave-to：与进入动画类似，应用于离开动画。
+
+属性与事件函数
+#1、name：可以用于指定class名，用于替换v，如v-enter-from变为name-enter-from；也可以通过enter-active-class等属性来直接指定class名（优先级更高）
+#2、type：Vue会自动附加事件监听，以便知道过渡或动画何时结束。但同时使用过渡和动画时，需要通过type属性来告诉Vue应该关心哪种类型。
+#3、duration：Transition组件会监听根元素的第一个过渡结束或动画结束，来判断过渡或动画何时结束。如果想自己设置持续时间，可以通过duration属性（ms）设置，同样支持传递一个对象包含enter,leave属性来分别配置进入/离开的持续时间。
+#4、appear：用于初次渲染时应用过渡效果
+#5、mode：用于过渡模式，若不指定则进入和离开元素时同时开始动画；out-in，先处理离开元素动画再处理进入动画；in-out则相反
+#6、事件函数：支持如before-enter/enter/after-enter/enter-cancelled/before-leave/leave/after-leave/leave-cancelled事件函数。事件函数既可以搭配CSS使用，也可以单独使用JS自己编写过渡效果，自己编写时最好通过:css="false"告诉Vue跳过过渡的自动检测，还可以防止意外的CSS规则干扰；自己编写JS动画时，enter/leave必须调用函数的done回调来表明过渡结束
+
+说明
+#1、动画尽量使用transform/opacity来实现以获得更好的性能，尽量不要改变布局属性。
+#2、为了完成过渡效果，有时候需要使用key来强制切换子元素。
+
+
+2、TransitionGroup：用于列表渲染的子组件，增/删/移动时进行过渡或动画
+支持的属性/css过渡class/JS钩子和Transition基本相同，主要区别在于：
+#1、默认情况不会渲染容器元素。可以通过tag属性指定一个元素作为容器元素，这种情况下css class会被应用于列表内的元素上，而不是容器元素上。
+#2、无法使用mode过渡模式，因为元素不再是互斥的。
+#3、列表渲染的元素必须有独一无二的key。
+额外的属性
+#1、tag：用于设定容器元素。如 tag="ul"
+额外的css class
+#1、v-move：列表元素会因为增加/删除/切换而整体移动，通过这个指定移动的过渡效果。（不设置的话就是很突兀的突然跳动）
+
+
+3、KeepAlive：用于多个组件间动态切换时缓存被移除组件实例
+用KeepAlive包裹要切换的组件，如包裹<component>
+属性：
+#1、include/exclude：KeepAlive默认会缓存所有组件实例，可以通过这两个属性来包含/排除组件。值可以为英文逗号分隔的字符串/正则表达式/包含前两个类型的数组，其会根据内部组件的name属性进行匹配。
+#2、max：设置最大缓存实例数，采取LRU缓存。
+说明：
+#1、组件中有两个专门针对KeepAlive的生命周期钩子。onActivated用于首次挂载/从缓存中重新插入；onDeactivated用于卸载；从DOM移除进入缓存。该钩子不仅对缓存树的根组件有用，缓存树的后代组件也适用。
+
+
+4、Teleport：用于实际渲染在其他DOM下的DOM节点，但组件依然在组件树中
+使用时通过Teleport包裹要传送的组件，并通过to属性指定传送位置。
+属性：
+#1、to：指定Teleport插槽被传送的位置，值可以是CSS选择器字符串/DOM元素对象。如：to="body"。
+#2、disabled：禁用Teleport的传送功能。
+#3、defer：默认情况下，Teleport挂载时，to目标必须已存在于DOM中；使用该属性可以延迟解析插槽内容，直到应用的其他部分挂载。但是to目标必须和Teleport在同一个挂载/更新周期内渲染。
+说明：
+#1、Teleport只改变了渲染的DOM解构，不会影响组件间的逻辑关系。
+#2、多个Teleport可以使用to渲染在同一个元素下，顺序就是简单的顺次追加。
+
+
+5、Suspense：在组件树中协调对异步依赖的处理
+当Suspense的多个子组件处于异步加载状态时，会展示加载中视图，并在所有子组件异步加载完成后展示内容。
+Suspense可以等待的异步依赖有两种：#1、异步组件（懒加载组件）。#2、带有异步setup钩子的组件（包括<script setup>顶层中使用了await表达式）
+插槽：
+#1、#default：所有异步依赖都完成时展示的内容。
+#2、#fallback：遇到异步依赖导致挂起时，展示的后备内容。
+属性：
+#1、timeout：发生挂起时会先展示#default内容，等待timeout时才会展示#fallback内容。
+#2、suspensible：true时表明所有的异步依赖将由父级Suspense处理。
+说明：
+#1、Suspense下的异步组件，加载状态是由Suspense控制的，而异步组件自己的加载，报错，延时和超时选项会被忽略。通过异步组件选项中的suspensible设为false可以表明不受Suspense控制，让其自己控制加载状态。
+#2、Suspense进入完成状态后，只有默认插槽的根节点被替换才会回到挂起状态。组件树中"新"的更深层次的异步依赖不会导致Suspense回到挂起状态。
+#3、Suspense会触发三个事件：pending（进入挂起状态时触发），resolve（default插槽完成获取新内容时触发），fallback（fallback插槽内容显示时触发）。
+#4、Suspense不支持错误捕获，可以通过包裹在一个父组件下，在父组件中通过onErrorCaptured钩子捕捉错误。
+#5、配合其他组件使用时需要保证嵌套顺序。<RouterView><Transition><KeepAlive><Suspense><component>从左到右表示从外到内
