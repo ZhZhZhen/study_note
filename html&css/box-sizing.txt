@@ -1,5 +1,0 @@
-content-box：默认属性，元素宽高 = 内容宽高
-border-box：元素宽高 = 内容宽高 + 内边距 + 边框
-
-标准盒模型即box-sizing为content-box的盒子模型，一个块的总宽度 = width + margin + padding + border
-IE盒模型即box-sizing为border-box的盒子模型，一个块的总宽度= width + margin （其中width已经包含了padding和border）
